@@ -105,7 +105,9 @@ class SessionRunner extends ChangeNotifier {
       }
       imageA = a;
       imageB = b;
-      setStage(StudyStage.promptA);
+      setStage(
+        experiment.promptMs == 0 ? StudyStage.imageA : StudyStage.promptA,
+      );
     } catch (e) {
       a?.dispose();
       b?.dispose();
@@ -117,6 +119,9 @@ class SessionRunner extends ChangeNotifier {
     final data = await repository.imageFile(experiment, relative).readAsBytes();
     final codec = await ui.instantiateImageCodec(data);
     try {
+      if (experiment.isV2 && codec.frameCount != 1) {
+        throw const FormatException('不支持动画素材');
+      }
       return (await codec.getNextFrame()).image;
     } finally {
       codec.dispose();
@@ -149,12 +154,15 @@ class SessionRunner extends ChangeNotifier {
       'startedAt': DateTime.now().toUtc().toIso8601String(),
       'plannedMs': duration,
       'viewport': viewport,
+      if (experiment.isV2 && image)
+        'alternative': trial.order[stage == StudyStage.imageA ? 0 : 1],
     };
     if (duration != null) {
       _timer = Timer(Duration(milliseconds: duration), () {
         final next = switch (stage) {
           StudyStage.promptA => StudyStage.imageA,
-          StudyStage.imageA => StudyStage.promptB,
+          StudyStage.imageA =>
+            experiment.promptMs == 0 ? StudyStage.imageB : StudyStage.promptB,
           StudyStage.promptB => StudyStage.imageB,
           StudyStage.imageB => StudyStage.answer,
           _ => stage,
@@ -179,7 +187,11 @@ class SessionRunner extends ChangeNotifier {
         (_stageStarted ?? clock.elapsedMilliseconds);
     final answer = {
       'trialId': trial.id,
-      'choice': choice,
+      if (experiment.isV2) ...{
+        'selectedPosition': choice,
+        'selectedAlternative': trial.selected(choice),
+      } else
+        'choice': choice,
       'responseMs': response,
       'answeredAt': DateTime.now().toUtc().toIso8601String(),
     };
@@ -426,14 +438,14 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
           body: LayoutBuilder(
             builder: (context, bounds) {
               final ratio = MediaQuery.devicePixelRatioOf(context);
-              final c = runner.index < runner.session.trials.length
-                  ? runner.currentCase
-                  : null;
-              final size = c == null
+              final shown = stage == StudyStage.imageB
+                  ? runner.imageB
+                  : runner.imageA;
+              final size = shown == null
                   ? Size.zero
                   : applyBoxFit(
                       BoxFit.contain,
-                      Size(c.width.toDouble(), c.height.toDouble()),
+                      Size(shown.width.toDouble(), shown.height.toDouble()),
                       bounds.biggest,
                     ).destination;
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -447,10 +459,14 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
               });
               return switch (stage) {
                 StudyStage.instructions => panel(
-                  runner.practice ? '观看说明与练习' : '练习结束，开始正式测试',
                   runner.practice
-                      ? '接下来每次会先后显示两幅图片。\n请判断哪一幅是真实拍摄图像。\n即使不确定，也必须选择第一幅或第二幅。\n图片显示后不能回看，答题不设时限。\n先完成练习，练习结果不计入正式统计。'
-                      : '正式阶段不显示答案或正确率。\n请依据记忆与整体印象作答，不必刻意寻找细小差别。\n作答后自动进入下一题。测试期间请保持观看距离，不切换应用。',
+                      ? '观看说明与练习'
+                      : runner.session.practiceStarted
+                      ? '练习结束，开始正式测试'
+                      : '开始评价',
+                  runner.practice
+                      ? '每次会先后显示两幅图片。\n${runner.experiment.question}\n即使不确定，也必须选择第一幅或第二幅。\n图片显示后不能回看，答题不设时限。\n练习结果不计入正式统计。'
+                      : '${runner.experiment.question}\n每题先后显示两幅图片，随后请选择第一幅或第二幅。\n图片不能回看，答题不限时；作答后自动进入下一题。\n正式阶段不显示答案或正确率。\n${runner.experiment.definition?.instructions ?? '请保持观看距离，不切换应用。'}',
                   runner.practice ? '开始练习' : '开始正式测试',
                   () => unawaited(runner.begin()),
                   buttonKey: const Key('begin-phase'),
@@ -492,8 +508,8 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        const Text(
-                          '哪一幅是真实拍摄图像？',
+                        Text(
+                          runner.experiment.question,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white,

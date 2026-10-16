@@ -1,0 +1,616 @@
+{
+  "schema": 1,
+  "id": "hn9583xkep_fbdjwm",
+  "experimentId": "1fd7f6f27b21e368d0f042906c65204e92095068068586cdec28aabfce17b2f9",
+  "participantId": "DEMO-001",
+  "startedAt": "2026-10-16T03:30:42.957457Z",
+  "seed": 597894538,
+  "participant": {
+    "age": 26,
+    "expert": false,
+    "normalVision": true,
+    "normalColorVision": true,
+    "organizerOrDeveloper": false
+  },
+  "display": {
+    "condition": "PC · 实验室显示器",
+    "distanceCm": 60.0,
+    "device": "Native integration device",
+    "displayNotes": "",
+    "platform": "windows",
+    "osVersion": "\"Windows 10 Pro\" 10.0 (Build 26200)",
+    "screenWidthPx": 1898.0,
+    "screenHeightPx": 1024.0,
+    "dpr": 1.5
+  },
+  "trials": [
+    {
+      "id": "practice_1:practice",
+      "caseId": "practice_1",
+      "capturedFirst": true
+    },
+    {
+      "id": "practice_3:practice",
+      "caseId": "practice_3",
+      "capturedFirst": false
+    },
+    {
+      "id": "practice_0:practice",
+      "caseId": "practice_0",
+      "capturedFirst": true
+    },
+    {
+      "id": "practice_2:practice",
+      "caseId": "practice_2",
+      "capturedFirst": false
+    },
+    {
+      "id": "control_1:control",
+      "caseId": "control_1",
+      "capturedFirst": false
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v10:1",
+      "caseId": "Dance_Dunhuang_Pair_1080_v10",
+      "capturedFirst": false
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v50:1",
+      "caseId": "Dance_Dunhuang_Pair_1080_v50",
+      "capturedFirst": false
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v30:1",
+      "caseId": "Dance_Dunhuang_Pair_1080_v30",
+      "capturedFirst": false
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v0:1",
+      "caseId": "Dance_Dunhuang_Pair_1080_v0",
+      "capturedFirst": false
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v40:1",
+      "caseId": "Dance_Dunhuang_Pair_1080_v40",
+      "capturedFirst": false
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v20:1",
+      "caseId": "Dance_Dunhuang_Pair_1080_v20",
+      "capturedFirst": false
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v30:2",
+      "caseId": "Dance_Dunhuang_Pair_1080_v30",
+      "capturedFirst": true
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v0:2",
+      "caseId": "Dance_Dunhuang_Pair_1080_v0",
+      "capturedFirst": true
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v50:2",
+      "caseId": "Dance_Dunhuang_Pair_1080_v50",
+      "capturedFirst": true
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v20:2",
+      "caseId": "Dance_Dunhuang_Pair_1080_v20",
+      "capturedFirst": true
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v40:2",
+      "caseId": "Dance_Dunhuang_Pair_1080_v40",
+      "capturedFirst": true
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080_v10:2",
+      "caseId": "Dance_Dunhuang_Pair_1080_v10",
+      "capturedFirst": true
+    },
+    {
+      "id": "VRU_gz_v10:1",
+      "caseId": "VRU_gz_v10",
+      "capturedFirst": false
+    },
+    {
+      "id": "VRU_gz_v20:1",
+      "caseId": "VRU_gz_v20",
+      "capturedFirst": false
+    },
+    {
+      "id": "VRU_gz_v0:1",
+      "caseId": "VRU_gz_v0",
+      "capturedFirst": false
+    },
+    {
+      "id": "VRU_gz_v30:1",
+      "caseId": "VRU_gz_v30",
+      "capturedFirst": false
+    },
+    {
+      "id": "VRU_gz_v0:2",
+      "caseId": "VRU_gz_v0",
+      "capturedFirst": true
+    },
+    {
+      "id": "VRU_gz_v30:2",
+      "caseId": "VRU_gz_v30",
+      "capturedFirst": true
+    },
+    {
+      "id": "VRU_gz_v10:2",
+      "caseId": "VRU_gz_v10",
+      "capturedFirst": true
+    },
+    {
+      "id": "VRU_gz_v20:2",
+      "caseId": "VRU_gz_v20",
+      "capturedFirst": true
+    },
+    {
+      "id": "control_0:control",
+      "caseId": "control_0",
+      "capturedFirst": true
+    },
+    {
+      "id": "VRU_dg4_v10:1",
+      "caseId": "VRU_dg4_v10",
+      "capturedFirst": false
+    },
+    {
+      "id": "VRU_dg4_v20:1",
+      "caseId": "VRU_dg4_v20",
+      "capturedFirst": false
+    },
+    {
+      "id": "VRU_dg4_v0:1",
+      "caseId": "VRU_dg4_v0",
+      "capturedFirst": true
+    },
+    {
+      "id": "VRU_dg4_v30:1",
+      "caseId": "VRU_dg4_v30",
+      "capturedFirst": true
+    },
+    {
+      "id": "VRU_dg4_v0:2",
+      "caseId": "VRU_dg4_v0",
+      "capturedFirst": false
+    },
+    {
+      "id": "VRU_dg4_v30:2",
+      "caseId": "VRU_dg4_v30",
+      "capturedFirst": false
+    },
+    {
+      "id": "VRU_dg4_v10:2",
+      "caseId": "VRU_dg4_v10",
+      "capturedFirst": true
+    },
+    {
+      "id": "VRU_dg4_v20:2",
+      "caseId": "VRU_dg4_v20",
+      "capturedFirst": true
+    },
+    {
+      "id": "Show_Groups_4K_v20:1",
+      "caseId": "Show_Groups_4K_v20",
+      "capturedFirst": true
+    },
+    {
+      "id": "Show_Groups_4K_v30:1",
+      "caseId": "Show_Groups_4K_v30",
+      "capturedFirst": false
+    },
+    {
+      "id": "Show_Groups_4K_v10:1",
+      "caseId": "Show_Groups_4K_v10",
+      "capturedFirst": false
+    },
+    {
+      "id": "Show_Groups_4K_v40:1",
+      "caseId": "Show_Groups_4K_v40",
+      "capturedFirst": true
+    },
+    {
+      "id": "Show_Groups_4K_v0:1",
+      "caseId": "Show_Groups_4K_v0",
+      "capturedFirst": true
+    },
+    {
+      "id": "Show_Groups_4K_v50:1",
+      "caseId": "Show_Groups_4K_v50",
+      "capturedFirst": false
+    },
+    {
+      "id": "Show_Groups_4K_v10:2",
+      "caseId": "Show_Groups_4K_v10",
+      "capturedFirst": true
+    },
+    {
+      "id": "Show_Groups_4K_v40:2",
+      "caseId": "Show_Groups_4K_v40",
+      "capturedFirst": false
+    },
+    {
+      "id": "Show_Groups_4K_v50:2",
+      "caseId": "Show_Groups_4K_v50",
+      "capturedFirst": true
+    },
+    {
+      "id": "Show_Groups_4K_v0:2",
+      "caseId": "Show_Groups_4K_v0",
+      "capturedFirst": false
+    },
+    {
+      "id": "Show_Groups_4K_v30:2",
+      "caseId": "Show_Groups_4K_v30",
+      "capturedFirst": true
+    },
+    {
+      "id": "Show_Groups_4K_v20:2",
+      "caseId": "Show_Groups_4K_v20",
+      "capturedFirst": false
+    }
+  ],
+  "answers": [
+    {
+      "trialId": "practice_1:practice",
+      "choice": 1,
+      "responseMs": 3,
+      "answeredAt": "2026-10-16T03:30:43.812117Z"
+    },
+    {
+      "trialId": "practice_3:practice",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:44.143229Z"
+    },
+    {
+      "trialId": "practice_0:practice",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:44.487112Z"
+    },
+    {
+      "trialId": "practice_2:practice",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:44.826565Z"
+    },
+    {
+      "trialId": "control_1:control",
+      "choice": 2,
+      "responseMs": 3,
+      "answeredAt": "2026-10-16T03:30:45.243952Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v10:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:45.575269Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v50:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:45.909105Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v30:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:46.242864Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v0:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:46.658795Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v40:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:46.991738Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v20:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:47.325633Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v30:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:47.658568Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v0:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:47.992710Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v50:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:48.324922Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v20:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:48.659612Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v40:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:48.991977Z"
+    },
+    {
+      "trialId": "Dance_Dunhuang_Pair_1080_v10:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:49.324678Z"
+    },
+    {
+      "trialId": "VRU_gz_v10:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:49.659182Z"
+    },
+    {
+      "trialId": "VRU_gz_v20:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:49.991441Z"
+    },
+    {
+      "trialId": "VRU_gz_v0:1",
+      "choice": 1,
+      "responseMs": 3,
+      "answeredAt": "2026-10-16T03:30:50.325914Z"
+    },
+    {
+      "trialId": "VRU_gz_v30:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:50.659324Z"
+    },
+    {
+      "trialId": "VRU_gz_v0:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:50.991634Z"
+    },
+    {
+      "trialId": "VRU_gz_v30:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:51.325328Z"
+    },
+    {
+      "trialId": "VRU_gz_v10:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:51.660086Z"
+    },
+    {
+      "trialId": "VRU_gz_v20:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:51.991272Z"
+    },
+    {
+      "trialId": "control_0:control",
+      "choice": 1,
+      "responseMs": 3,
+      "answeredAt": "2026-10-16T03:30:52.326852Z"
+    },
+    {
+      "trialId": "VRU_dg4_v10:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:52.659278Z"
+    },
+    {
+      "trialId": "VRU_dg4_v20:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:52.993366Z"
+    },
+    {
+      "trialId": "VRU_dg4_v0:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:53.325756Z"
+    },
+    {
+      "trialId": "VRU_dg4_v30:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:53.658451Z"
+    },
+    {
+      "trialId": "VRU_dg4_v0:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:53.991446Z"
+    },
+    {
+      "trialId": "VRU_dg4_v30:2",
+      "choice": 1,
+      "responseMs": 3,
+      "answeredAt": "2026-10-16T03:30:54.325633Z"
+    },
+    {
+      "trialId": "VRU_dg4_v10:2",
+      "choice": 1,
+      "responseMs": 1,
+      "answeredAt": "2026-10-16T03:30:54.658299Z"
+    },
+    {
+      "trialId": "VRU_dg4_v20:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:54.984353Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v20:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:55.317Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v30:1",
+      "choice": 1,
+      "responseMs": 1,
+      "answeredAt": "2026-10-16T03:30:55.643029Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v10:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:55.977335Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v40:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:56.325616Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v0:1",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:56.741679Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v50:1",
+      "choice": 1,
+      "responseMs": 3,
+      "answeredAt": "2026-10-16T03:30:57.075635Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v10:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:57.408282Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v40:2",
+      "choice": 1,
+      "responseMs": 1,
+      "answeredAt": "2026-10-16T03:30:57.741265Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v50:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:58.074747Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v0:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:58.396119Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v30:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:58.741710Z"
+    },
+    {
+      "trialId": "Show_Groups_4K_v20:2",
+      "choice": 1,
+      "responseMs": 2,
+      "answeredAt": "2026-10-16T03:30:59.074968Z"
+    }
+  ],
+  "events": [
+    {
+      "type": "presentation",
+      "trialId": "practice_1:practice",
+      "stage": "promptA",
+      "startedAt": "2026-10-16T03:30:43.510172Z",
+      "plannedMs": 30,
+      "viewport": {
+        "logicalWidth": 2560.0,
+        "logicalHeight": 1440.0,
+        "dpr": 1.5,
+        "imageWidthPx": 3840.0,
+        "imageHeightPx": 2160.0
+      },
+      "actualMs": 31
+    },
+    {
+      "type": "presentation",
+      "trialId": "practice_1:practice",
+      "stage": "imageA",
+      "startedAt": "2026-10-16T03:30:43.551715Z",
+      "plannedMs": 30,
+      "viewport": {
+        "logicalWidth": 2560.0,
+        "logicalHeight": 1440.0,
+        "dpr": 1.5,
+        "imageWidthPx": 3840.0,
+        "imageHeightPx": 2160.0
+      },
+      "actualMs": 32
+    },
+    {
+      "type": "presentation",
+      "trialId": "practice_1:practice",
+      "stage": "promptB",
+      "startedAt": "2026-10-16T03:30:43.637304Z",
+      "plannedMs": 30,
+      "viewport": {
+        "logicalWidth": 2560.0,
+        "logicalHeight": 1440.0,
+        "dpr": 1.5,
+        "imageWidthPx": 3840.0,
+        "imageHeightPx": 2160.0
+      },
+      "actualMs": 31
+    },
+    {
+      "type": "presentation",
+      "trialId": "practice_1:practice",
+      "stage": "imageB",
+      "startedAt": "2026-10-16T03:30:43.719897Z",
+      "plannedMs": 30,
+      "viewport": {
+        "logicalWidth": 2560.0,
+        "logicalHeight": 1440.0,
+        "dpr": 1.5,
+        "imageWidthPx": 3840.0,
+        "imageHeightPx": 2160.0
+      },
+      "actualMs": 32
+    },
+    {
+      "type": "presentation",
+      "trialId": "practice_1:practice",
+      "stage": "answer",
+      "startedAt": "2026-10-16T03:30:43.809610Z",
+      "plannedMs": null,
+      "viewport": {
+        "logicalWidth": 2560.0,
+        "logicalHeight": 1440.0,
+        "dpr": 1.5,
+        "imageWidthPx": 3840.0,
+        "imageHeightPx": 2160.0
+      },
+      "actualMs": 3
+    }
+  ],
+  "completedAt": "2026-10-16T03:30:59.074968Z",
+  "practiceStarted": true,
+  "formalStarted": true
+}

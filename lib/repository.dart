@@ -4,10 +4,13 @@ import 'dart:math';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'domain.dart';
 import 'platform_bridge.dart';
+import 'study_templates.dart';
+part 'v2_repository.dart';
 
 String uniqueId() =>
     '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}_${Random.secure().nextInt(0x7fffffff).toRadixString(36)}';
@@ -203,8 +206,12 @@ Future<SourceScan> scanSource(String root, String sequence) async {
 
 class StudyRepository {
   final Directory root;
+  final List<String> issues = [];
   Future<void> _pendingSave = Future.value();
   StudyRepository(this.root);
+  Future<List<StudyDraft>> drafts() => readDrafts();
+  Future<StudyDraft> saveDraft(Map<String, dynamic> source) =>
+      writeDraft(source);
   static Future<StudyRepository> open() async {
     final root = Directory(
       p.join(await PlatformBridge.appDirectory(), 'studies-v1'),
@@ -226,7 +233,10 @@ class StudyRepository {
       throw const FormatException('题库包含不安全的图片路径');
     }
     return File(
-      p.joinAll([experimentDir(e.id).path, ...p.posix.split(normalized)]),
+      p.joinAll([
+        e.isV2 ? revisionDir(e.id).path : experimentDir(e.id).path,
+        ...p.posix.split(normalized),
+      ]),
     );
   }
 
@@ -237,14 +247,25 @@ class StudyRepository {
       if (child is! Directory) continue;
       final file = File(p.join(child.path, 'experiment.json'));
       if (await file.exists()) {
-        result.add(Experiment.fromJson(jsonDecode(await file.readAsString())));
+        try {
+          result.add(
+            Experiment.fromJson(jsonDecode(await file.readAsString())),
+          );
+        } catch (error) {
+          noteIssue('${file.path}：$error');
+        }
       }
     }
+    result.addAll(await v2Experiments());
     result.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return result;
   }
 
   Future<void> verify(Experiment e) async {
+    if (e.isV2) {
+      await verifyV2(e);
+      return;
+    }
     e.validate();
     for (final c in e.cases) {
       for (final pair in [(c.gt, c.gtHash), (c.render, c.renderHash)]) {
@@ -387,6 +408,7 @@ class StudyRepository {
   }
 
   Future<Uint8List> exportPackage(Experiment e) async {
+    if (e.isV2) return exportV2Package(e);
     await verify(e);
     final archive = Archive();
     final bytes = utf8.encode(jsonEncode(e.toJson()));
@@ -415,12 +437,14 @@ class StudyRepository {
     final all = <StudySession>[];
     await for (final file in Directory(p.join(root.path, 'sessions')).list()) {
       if (file is! File || !file.path.endsWith('.json')) continue;
-      final session = StudySession.fromJson(
-        jsonDecode(await file.readAsString()),
-      );
-      if (session.experimentId == e.id) {
+      try {
+        final body = jsonMap(jsonDecode(await file.readAsString()), 'session');
+        if ((body['revisionId'] ?? body['experimentId']) != e.id) continue;
+        final session = StudySession.fromJson(body);
         session.validate(e);
         all.add(session);
+      } catch (error) {
+        noteIssue('${file.path}：$error');
       }
     }
     all.sort((a, b) => b.startedAt.compareTo(a.startedAt));
@@ -429,7 +453,14 @@ class StudyRepository {
 
   Future<int> mergeResults(Experiment e, Uint8List bytes) async {
     final body = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-    if (body['schema'] != 1 || body['experimentId'] != e.id) {
+    if (e.isV2
+        ? body['schema'] != 2 ||
+              body['studyId'] != e.studyId ||
+              body['revisionId'] != e.id ||
+              digestJson(body['release'] ?? {}) != digestJson(e.release!) ||
+              digestJson(body['definition'] ?? {}) !=
+                  digestJson(e.definition!.toJson())
+        : body['schema'] != 1 || body['experimentId'] != e.id) {
       throw const FormatException('结果属于其他题库，请先导入对应测试包');
     }
     final incoming = records(
@@ -439,7 +470,10 @@ class StudyRepository {
     final byId = {for (final s in existing) s.id: s};
     final byPerson = {
       for (final s in existing)
-        jsonEncode([s.participantId, s.display['condition']]): s.id,
+        jsonEncode([
+          s.participantId,
+          s.display[e.isV2 ? 'conditionId' : 'condition'],
+        ]): s.id,
     };
     final added = <StudySession>[];
     for (final s in incoming) {
@@ -451,7 +485,10 @@ class StudyRepository {
         }
         continue;
       }
-      final key = jsonEncode([s.participantId, s.display['condition']]);
+      final key = jsonEncode([
+        s.participantId,
+        s.display[e.isV2 ? 'conditionId' : 'condition'],
+      ]);
       if (byPerson.containsKey(key)) {
         throw FormatException('同一观看条件下受试者编号重复：${s.participantId}');
       }
@@ -469,8 +506,14 @@ class StudyRepository {
       Uint8List.fromList(
         utf8.encode(
           const JsonEncoder.withIndent('  ').convert({
-            'schema': 1,
-            'experimentId': e.id,
+            'schema': e.isV2 ? 2 : 1,
+            if (e.isV2) ...{
+              'studyId': e.studyId,
+              'revisionId': e.id,
+              'release': e.release,
+              'definition': e.definition!.toJson(),
+            } else
+              'experimentId': e.id,
             'isDemo': e.isDemo,
             'sessions': sessions.map((s) => s.toJson()).toList(),
             'report': buildReport(e, sessions),
@@ -478,6 +521,7 @@ class StudyRepository {
         ),
       );
   Uint8List resultsCsv(Experiment e, List<StudySession> sessions) {
+    if (e.isV2) return v2Csv(e, sessions);
     final rows = <List<Object?>>[
       [
         'experiment_id',

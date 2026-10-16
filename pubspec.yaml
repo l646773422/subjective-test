@@ -1,7 +1,7 @@
 name: subjective_study
-description: Offline successive 2AFC photorealism study for Windows and Android.
+description: Offline subjective evaluation platform with versioned 2AFC experiments.
 publish_to: none
-version: 0.1.0+1
+version: 0.2.0+2
 environment:
   sdk: '>=3.11.0 <4.0.0'
 dependencies:
@@ -24,3 +24,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/demo.study.zip
+    - assets/generic.demo.zip

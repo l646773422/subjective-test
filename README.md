@@ -1,88 +1,86 @@
-# 真实感评测
+# 主观评价平台
 
-离线的顺序呈现二选一（successive 2AFC）评测工具，独立 Flutter 项目，支持 Windows 与 Android。
+Windows / Android 离线主观评价工作台，当前支持静态图片顺序呈现的 2AFC。通过标准数据描述创建实验，预览后发布不可变版本，再登记参与者、采集和分析。真实感评测保留为模板，schema 1 历史数据继续使用原排程及统计实现。
 
-## 快速使用
+## 快速体验
 
-1. Windows 解压 dist/subjective-study-windows-x64.zip，运行其中的 subjective_study.exe（保留同目录 DLL 和 data）；安卓（Android 7.0+，ARM64）安装 dist/subjective-study-android.apk。
-2. 点击“载入演示题库”即可体验。内置的 52 张合成图只用于功能验证，所有相关结果明确标记为演示，不能用于照片级真实的正式结论。
-3. 在“采集会话”登记匿名编号、年龄、设备、观看距离、观看条件分组及参与条件。
-4. 先完成四道练习，再进入正式阶段。每题 A 提示 2 秒、A 图 3 秒、B 提示 2 秒、B 图 3 秒，之后必须二选一，无答题超时。
-5. 安卓首次全屏可能弹出系统操作提示，先确认提示，再点击开始。评测时保持横屏、全屏和屏幕常亮。
-6. 整轮共 46 题：4 道练习、40 次正式判断、2 道控制题。PC 可按 1/2，安卓点击大按钮。Esc/系统返回可暂停并保存；回到会话页面可恢复。
-7. 结果页导出 CSV 与完整 JSON。跨设备传递同一个测试包后，可合并对应题库的结果 JSON。重复文件不会重复计数；内容冲突或同一观看条件下的受试者编号冲突会报错。
+1. Windows 解压 `dist/subjective-study-windows-x64.zip` 并运行 `subjective_study.exe`，保留同目录 DLL 和 data；Android 安装 `dist/subjective-study-android.apk`。
+2. 点击“体验通用演示”。这是一个仅含一对图片的 v2 实验，无练习、控制或年龄要求。
+3. 点击“进入采集”，填写匿名参与者编号和观看条件，设备与观看距离可按需要记录。
+4. 每题先后显示两幅图片，随后强制选择第一幅或第二幅。默认提示 2 秒、图片 3 秒，作答不限时，无默认答案和回看。
+5. 结果页面按观看条件显示逐题选择比例，并导出逐题 CSV 和完整 JSON。演示数据不能用于正式结论。
 
-## 正式素材
+测试时保持全屏、横屏和屏幕常亮。Esc / 系统返回会暂停并保存，恢复时完整重播未完成题次。Android 首次全屏的系统提示需要先确认。
 
-添加四个序列的图片根目录。目录结构：
+## 建立自己的实验
 
-    场景/参数目录/frameXXXXXX/test/ours_迭代数/gt/00000.png
-    场景/参数目录/frameXXXXXX/test/ours_迭代数/renders/00000.png
+选择“新建通用 2AFC”，编辑问题、添加图片对、设置可选的标准答案与分组。草稿修改自动保存，可以预览完整题次，返回实验页面后点击“发布版本”。每次发布生成新版本；已有发布包和会话不会随草稿编辑而变化。
 
-每帧按数值取最大的 ours_迭代目录。该目录不完整时报告错误，不退回旧迭代。GT/render 以同名文件配对，检查图片尺寸。
+也可以导入含 `study.json` 的目录或 ZIP。文件名和目录自由组织，图片路径相对于描述文件：
 
-VRU_gz、VRU_dg4 使用视点 0/10/20/30；Dance_Dunhuang_Pair_1080、Show_Groups_4K 使用 0/10/20/30/40/50。默认每序列随机抽一帧并保留全部指定视点，固定 20 对正式图片。
+```json
+{
+  "schema": 2,
+  "studyId": "my-study",
+  "name": "图片评价实验",
+  "method": "2afc",
+  "question": "哪一幅看起来更自然？",
+  "items": [
+    {"id": "pair-001", "a": "photos/first.png", "b": "outputs/second.png"}
+  ]
+}
+```
 
-相机编号可写入每个 ours 目录下的 view_ids.json，例如：
+`a/b` 是素材身份，与屏幕先后位置无关。有标准答案时填写 `answer: "a"` 或 `"b"` 并选择准确率指标；无标准答案时使用逐题选择比例。练习和控制题均可选，重复次数只影响正式题。图片可使用不同尺寸，等比完整显示，不自动裁切、改色或压缩。
 
-    {"00000.png":0,"00001.png":10,"00002.png":20,"00003.png":30,"00004.png":40,"00005.png":50}
+详细字段、默认值、操作与导出合同见 [数据与操作规范 v2](docs/study-data-v2.md)。完整样例在 [examples/study-v2](examples/study-v2/study.json)。来源差异在外部适配器中解决，平台不识别训练目录、固定场景或相机映射。
 
-若文件名本身是所需相机编号，则直接采用编号；否则按导出文件顺序映射，组织者必须核对。软件检查数据配对，无法仅凭两张图片证明相机位姿和时间对齐。
+Python 3.10+ 参考工具无需额外依赖：
 
-另外添加 3～5 道独立练习图片对、恰好两道明显差异控制图片对。组织者选择的第一张必须为真实拍摄图像，第二张为对应渲染/控制图像。练习图片不能与正式图片相同。正式冻结前确认图片和控制题答案。
+```powershell
+python tools/study_data.py validate examples/study-v2
+python tools/study_data.py migrate demo-data/demo.study.zip validation/migrated-study --study-id photorealism-demo
+```
 
-正式分辨率按方案为 1920×1080、Show_Groups_4K 为 3840×2160。测试保持等比完整显示，记录实际呈现尺寸，不自动裁切或美化。两端都可正式采集；观看条件不同的数据按登记的分组分别汇总。
+转换输出目录不能已存在，父目录需存在。原包不会被修改，素材不重编码，旧答案不能只更换 ID 后合入新版本。
 
-安卓可通过系统目录选择器导入图片树，仅复制需要的图片和视点映射，读取最大迭代目录。大批量素材建议先在 PC 冻结并导出精简 ZIP 测试包，再到安卓导入。
+## 真实感模板与旧数据
 
-demo-data 提供可独立导入的演示 ZIP、四个示例原始序列目录、练习及控制素材。示例原始根目录带 DEMO_ONLY.txt，使用这些目录生成的题库仍被标记为演示。
+“真实感评测模板”保存原方案的登记字段、参与条件、两轮次序平衡、四个场景视点覆盖、独立练习、两道控制题和真实感判定。发布定义包含每题至少 15 位有效参与者、专家比例不超过 1/3、序列识别率不超过 75% 等具体规则。
 
-## 统计合同
+导入旧 schema 1 测试包后，可继续建立或恢复旧会话、导出与合并旧 JSON，原随机算法与统计结果保持不变。已有本地目录和 Android 应用 ID 保留。单个损坏文件显示读取提示，不阻断其他实验。
 
-- 每对正式图片以两种次序各测一次，共 40 次判断，两种先后次序各占 50%。
-- 四个序列的分组顺序随机，组内两轮分别随机，同一对不会紧邻重复。
-- 控制题全局两道、次序平衡，放在正式阶段开头与中段；必须两道全对才达到 95% 要求。
-- 只有完成整轮、参与条件符合且控制题通过的会话计入正式识别率；其余数据保留并标记原因。
-- 正式识别率不包含练习/控制题。同一人重复两次不算两位观看员。
-- 每张图至少 15 位有效观看员、视点人数均衡、专家不超过 1/3 后，才具备判定条件。
-- 四个序列全部满足 S_seq≤75% 才整体通过。演示题库始终不作正式判定。
-- JSON 包含逐题原始答案、逐图/序列统计、呈现时间、设备信息和中断记录；CSV 为逐题明细。
-- 随机算法固定为 schema 1 的 xorshift32 + Fisher–Yates，不依赖系统默认随机实现；保存种子及实际排程。
+旧版实验的“复制为 v2 真实感草稿”会复制素材与元数据，应用完整模板后可发布新版本。Python 转换器生成通用源描述，旧规则只在 metadata 中留作追溯；如需真实感判定，需在草稿中明确应用该模板。metadata 本身不激活统计行为。
 
-## 本地记录与恢复
+旧目录读取与方案记录归档在 [schema 1 使用说明](docs/legacy-v1.md)，供旧工具或适配脚本参考。
 
-Windows 数据位于 LOCALAPPDATA/PCNL/SubjectiveStudy/studies-v1；安卓位于 App 私有 files/studies-v1。
+## 保存与交换
 
-题库使用内容校验 ID；图片通过 SHA-256 校验，开始会话前再次检查。题库配置不可原地编辑。新配置生成新版本。
+本地根目录继续为 Windows `LOCALAPPDATA/PCNL/SubjectiveStudy/studies-v1`、Android App 私有 `files/studies-v1`。`experiments/` 保留旧实验，`sessions/` 保存全部会话，`drafts/<studyId>/` 保存可编辑定义和素材，`revisions/<revisionId>/` 保存冻结的发布版本。
 
-答案通过串行化、flush 和临时文件替换逐题保存。未完成会话不计入最终统计；中断会保留并在返回后完整重播当前题。导出的完整 JSON 可备份和跨设备合并，导出的 ZIP 为可移植题库。
+发布时解码检查静态 PNG / JPEG，生成 SHA-256、真实宽高和执行实现版本。开始会话前复核素材；跨设备导入同一发布包保持相同 revisionId。完整结果 JSON 包含定义、发布清单、实际排程、原始答案和呈现/中断事件，素材由发布 ZIP 提供。CSV 为逐题分析明细。
 
-单个 ZIP 上限 512 MB、解压总量上限 1 GB；不允许目录穿越、符号链接和重复路径。原始安卓目录导入上限 1 GB，超过时请先导出精简题库。
+不同发布版本不能直接合并结果；相同会话重复导入幂等、不同内容报冲突。不同观看条件分别展示。单个 ZIP 上限 512 MB，展开量及标准目录导入上限 1 GB。Android 目录快照仅复制 PNG、JPEG、JSON，支持任意子目录；大素材建议先在 PC 发布精简包。
 
 ## 开发与验证
 
-已使用 Flutter 3.47.7 / Dart 3.13.5、Visual Studio 2022、JDK 17、Android SDK 36 / NDK 29.0.13599879。依赖版本由 pubspec.lock 固定。
+Flutter 3.47.7 / Dart 3.13.5、Visual Studio 2022、JDK 17、Android SDK 36；依赖由 pubspec.lock 固定。
 
-    flutter pub get
-    flutter analyze
-    flutter test test
-    $env:STUDY_ARTIFACT_DIR="validation/windows"
-    flutter drive --driver=test_driver/driver.dart --target=integration_test/flow_test.dart -d windows
-    $env:STUDY_ARTIFACT_DIR="validation/android"
-    flutter drive --driver=test_driver/driver.dart --target=integration_test/flow_test.dart -d emulator-5580
-    flutter build windows --release
-    flutter build apk --release --target-platform android-arm64,android-x64
+```powershell
+flutter pub get
+flutter analyze
+flutter test test
+python -m unittest discover -s tools -p test_study_data.py -v
+$env:STUDY_ARTIFACT_DIR="validation/v2-windows"
+flutter drive --driver=test_driver/driver.dart --target=integration_test/flow_test.dart -d windows
+$env:STUDY_ARTIFACT_DIR="validation/v2-android"
+flutter drive --driver=test_driver/driver.dart --target=integration_test/flow_test.dart -d emulator-5580
+flutter build windows --release
+flutter build apk --release --target-platform android-arm64,android-x64
+```
 
-Windows 若不能创建插件 symlink，可使用 tools/prepare_windows.ps1 创建项目内 junction，无需修改系统开发者模式。不要先运行 flutter clean 后直接使用 --no-pub；应重新准备插件文件。
+集成验证覆盖真实计时与中断、旧版完整 46 题、v2 最小实验与跨设备数据交换。加速计时只由测试入口注入，生产使用发布配置。实体设备和正式素材的显示条件须按实验要求另行联调。
 
-tools/package.ps1 将两端 Release 产物和演示题库整理到 dist，并生成 SHA-256 清单。
+Windows 插件链接受限时可运行 `tools/prepare_windows.ps1` 创建项目内 junction。`tools/build.ps1` 默认使用 `D:/tools/flutter`，路径可通过参数覆盖。两端构建按顺序执行，Android Release 使用内部调试签名。`tools/package.ps1` 整理 Release 产物及 SHA-256 清单到 dist。
 
-tools/build.ps1 使用当前机器 D:/tools/flutter，调用时可传 Flutter 参数替换路径。Android 构建使用 JDK 17。Android Release 构建保留 pub 阶段，以重新生成不含 integration_test 的生产插件注册；两端构建按顺序执行。APK 使用 Flutter 模板的本地调试签名，供内部安装验证；公开发行前应配置项目专用签名。
-
-tools/generate_demo.py 通过 Python/Pillow 生成确定性的合成测试夹具，不依赖图片生成服务，也不属于正式测试素材。
-
-原生集成测试会先按真实 2/3 秒计时验证一题、等待答题超过 5 秒并检查中断保存，再以明确的测试计时覆盖完整 46 题、数据持久化、控制题、统计和去重。加速只由测试入口注入，不提供给正式界面。
-
-## 当前验证范围
-
-24 项单元/界面测试、静态分析通过；Windows 和 Android 36 模拟器各完成两项原生流程验证，记录见 [docs/validation.md](docs/validation.md)。实体安卓设备和用户正式图片序列将在素材准备好后联调；模拟器的显示不能替代实际屏幕观看条件验证。
+原 v1 验证见 [docs/validation.md](docs/validation.md)，本次验证见 [docs/validation-v2.md](docs/validation-v2.md)。

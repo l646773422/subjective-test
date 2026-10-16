@@ -1,0 +1,15 @@
+{
+  "schema": 2,
+  "studyId": "simple-image-study",
+  "name": "通用图片二选一示例",
+  "method": "2afc",
+  "question": "哪一幅看起来更自然？",
+  "isDemo": true,
+  "items": [
+    {
+      "id": "pair-001",
+      "a": "images/a.png",
+      "b": "images/b.png"
+    }
+  ]
+}

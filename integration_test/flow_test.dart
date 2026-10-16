@@ -24,11 +24,12 @@ Future<void> until(
   WidgetTester tester,
   bool Function() predicate, {
   int seconds = 50,
+  String Function()? diagnostics,
 }) async {
   final deadline = DateTime.now().add(Duration(seconds: seconds));
   while (!predicate()) {
     if (DateTime.now().isAfter(deadline)) {
-      fail('Timed out waiting for native UI');
+      fail('Timed out waiting for native UI ${diagnostics?.call() ?? ''}');
     }
     await tester.pump(const Duration(milliseconds: 60));
   }
@@ -97,67 +98,80 @@ StudySession session(Experiment e, String id) => StudySession(
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  testWidgets(
-    'native real timing, no answer timeout and interruption recovery',
-    (tester) async {
-      final repo = await repository('timing'), e = await repo.loadDemo();
-      final s = session(e, 'timing');
-      await repo.save(s);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: RepaintBoundary(
-            key: const Key('capture-root'),
-            child: TestScreen(repository: repo, experiment: e, session: s),
-          ),
+  testWidgets('native real timing, no answer timeout and interruption recovery', (
+    tester,
+  ) async {
+    final repo = await repository('timing'), e = await repo.loadDemo();
+    final s = session(e, 'timing');
+    await repo.save(s);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: const Key('capture-root'),
+          child: TestScreen(repository: repo, experiment: e, session: s),
         ),
-      );
-      await until(tester, () => canPress(tester, const Key('begin-phase')));
-      await tester.ensureVisible(find.byKey(const Key('begin-phase')));
-      await tester.tap(find.byKey(const Key('begin-phase')));
-      await until(tester, () => find.byType(TestScreen).evaluate().isNotEmpty);
-      final screen = tester.state<TestScreenState>(find.byType(TestScreen));
-      await until(tester, () => screen.runner.stage == StudyStage.imageA);
-      await capture(tester, repo, 'stimulus');
-      await until(tester, () => screen.runner.stage == StudyStage.answer);
-      final answerToken = screen.runner.token;
-      await tester.pump(const Duration(seconds: 6));
-      expect(screen.runner.token, answerToken);
-      expect(s.answers, isEmpty);
-      await capture(tester, repo, 'answer');
-      await screen.runner.interrupt('integration-interruption');
-      await tester.pump();
-      expect(screen.runner.stage, StudyStage.interrupted);
-      expect(s.answers, isEmpty);
-      expect(
-        s.events.where((event) => event['type'] == 'interruption').length,
-        1,
-      );
-      final saved = (await repo.sessions(e)).single;
-      expect(saved.answers, isEmpty);
-      final events = s.events
-          .where(
-            (event) =>
-                event['type'] == 'presentation' && event['stage'] != 'answer',
-          )
-          .toList();
-      expect(events.length, 4);
-      for (final event in events) {
-        final planned = event['plannedMs'] as int,
-            actual = event['actualMs'] as int;
-        expect(actual, greaterThanOrEqualTo(planned - 20));
-        expect(actual, lessThan(planned + 1200));
-      }
-      await File(
-        p.join(repo.root.path, 'timing.json'),
-      ).writeAsString(const JsonEncoder.withIndent('  ').convert(s.toJson()));
-      // Logged path contains only app-owned validation artifacts.
-      integrationBinding.reportData!['timing'] = s.toJson();
-      debugPrint('NATIVE_TIMING_ARTIFACT=${repo.root.path}');
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(milliseconds: 300));
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
+      ),
+    );
+    await until(tester, () => canPress(tester, const Key('begin-phase')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('begin-phase')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const Key('begin-phase')));
+    await until(tester, () => find.byType(TestScreen).evaluate().isNotEmpty);
+    final screen = tester.state<TestScreenState>(find.byType(TestScreen));
+    await until(
+      tester,
+      () {
+        if (screen.runner.stage == StudyStage.error ||
+            screen.runner.stage == StudyStage.interrupted) {
+          fail(
+            'Initial presentation stopped: ${screen.runner.stage}; ${screen.runner.error}; ${jsonEncode(s.events)}',
+          );
+        }
+        return screen.runner.stage == StudyStage.imageA;
+      },
+      diagnostics: () =>
+          'stage=${screen.runner.stage}, error=${screen.runner.error}, events=${jsonEncode(s.events)}',
+    );
+    await capture(tester, repo, 'stimulus');
+    await until(tester, () => screen.runner.stage == StudyStage.answer);
+    final answerToken = screen.runner.token;
+    await tester.pump(const Duration(seconds: 6));
+    expect(screen.runner.token, answerToken);
+    expect(s.answers, isEmpty);
+    await capture(tester, repo, 'answer');
+    await screen.runner.interrupt('integration-interruption');
+    await tester.pump();
+    expect(screen.runner.stage, StudyStage.interrupted);
+    expect(s.answers, isEmpty);
+    expect(
+      s.events.where((event) => event['type'] == 'interruption').length,
+      1,
+    );
+    final saved = (await repo.sessions(e)).single;
+    expect(saved.answers, isEmpty);
+    final events = s.events
+        .where(
+          (event) =>
+              event['type'] == 'presentation' && event['stage'] != 'answer',
+        )
+        .toList();
+    expect(events.length, 4);
+    for (final event in events) {
+      final planned = event['plannedMs'] as int,
+          actual = event['actualMs'] as int;
+      expect(actual, greaterThanOrEqualTo(planned - 20));
+      expect(actual, lessThan(planned + 1200));
+    }
+    await File(
+      p.join(repo.root.path, 'timing.json'),
+    ).writeAsString(const JsonEncoder.withIndent('  ').convert(s.toJson()));
+    // Logged path contains only app-owned validation artifacts.
+    integrationBinding.reportData!['timing'] = s.toJson();
+    debugPrint('NATIVE_TIMING_ARTIFACT=${repo.root.path}');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 300));
+  }, timeout: const Timeout(Duration(minutes: 3)));
 
   testWidgets(
     'native UI completes all 46 demo trials and persists exportable results',
@@ -169,8 +183,18 @@ void main() {
           child: StudyApp(repository: repo, testDurationMs: 30),
         ),
       );
-      await until(tester, () => canPress(tester, const Key('load-demo')));
-      await tester.tap(find.byKey(const Key('load-demo')));
+      await until(
+        tester,
+        () =>
+            find.byKey(const Key('load-legacy-demo')).evaluate().isNotEmpty &&
+            tester
+                    .widget<TextButton>(
+                      find.byKey(const Key('load-legacy-demo')),
+                    )
+                    .onPressed !=
+                null,
+      );
+      await tester.tap(find.byKey(const Key('load-legacy-demo')));
       await until(tester, () => canPress(tester, const Key('go-sessions')));
       await capture(tester, repo, 'preparation');
       await tester.ensureVisible(find.byKey(const Key('go-sessions')));
@@ -244,6 +268,78 @@ void main() {
       await capture(tester, repo, 'results');
       integrationBinding.reportData!['results'] = jsonDecode(utf8.decode(data));
       debugPrint('NATIVE_FLOW_ARTIFACT=${repo.root.path}');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+    timeout: const Timeout(Duration(minutes: 4)),
+  );
+
+  testWidgets(
+    'generic v2 UI completes without practice, controls or mandatory demographics',
+    (tester) async {
+      final repo = await repository('v2-flow');
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: const Key('capture-root'),
+          child: StudyApp(repository: repo, testDurationMs: 30),
+        ),
+      );
+      await until(
+        tester,
+        () =>
+            find.byKey(const Key('load-demo')).evaluate().isNotEmpty &&
+            tester
+                    .widget<TextButton>(find.byKey(const Key('load-demo')))
+                    .onPressed !=
+                null,
+      );
+      await tester.tap(find.byKey(const Key('load-demo')));
+      await until(tester, () => canPress(tester, const Key('go-sessions')));
+      await capture(tester, repo, 'v2-library');
+      await tester.ensureVisible(find.byKey(const Key('go-sessions')));
+      await tester.tap(find.byKey(const Key('go-sessions')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('new-session')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('participant-id')), 'V2-001');
+      expect(find.byKey(const Key('participant-age')), findsNothing);
+      await tester.tap(find.byKey(const Key('create-session')));
+      await until(tester, () => find.byType(TestScreen).evaluate().isNotEmpty);
+      final screen = tester.state<TestScreenState>(find.byType(TestScreen));
+      expect(screen.runner.experiment.isV2, true);
+      expect(screen.runner.session.trials.length, 1);
+      await until(tester, () => canPress(tester, const Key('begin-phase')));
+      await tester.tap(find.byKey(const Key('begin-phase')));
+      await until(tester, () => screen.runner.stage == StudyStage.answer);
+      await capture(tester, repo, 'v2-answer');
+      final selected = screen.runner.trial.order[1];
+      await tester.tap(find.byKey(const Key('answer-2')));
+      await until(tester, () => screen.runner.stage == StudyStage.completed);
+      final e = (await repo.experiments()).single,
+          s = (await repo.sessions((await repo.experiments()).single)).single;
+      s.validate(e);
+      expect(s.valid(e), true);
+      expect(s.answers.single['selectedAlternative'], selected);
+      expect(s.answers.single['selectedPosition'], 2);
+      final data = repo.resultsJson(e, [s]);
+      final device = StudyRepository(
+        Directory(p.join(repo.root.path, 'other-device')),
+      );
+      await device.importStudyZip(await repo.exportPackage(e));
+      expect(await device.mergeResults(e, data), 1);
+      expect(await device.mergeResults(e, data), 0);
+      expect(
+        utf8.decode(repo.resultsCsv(e, [s])),
+        contains('selected_alternative'),
+      );
+      await tester.tap(find.byKey(const Key('finish-session')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('结果汇总').last);
+      await tester.pumpAndSettle();
+      await capture(tester, repo, 'v2-results');
+      integrationBinding.reportData!['v2Results'] = jsonDecode(
+        utf8.decode(data),
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

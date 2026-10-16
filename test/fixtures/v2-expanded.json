@@ -1,0 +1,42 @@
+{
+  "schema": 2,
+  "studyId": "simple-image-study",
+  "name": "通用图片二选一示例",
+  "method": "2afc",
+  "question": "哪一幅看起来更自然？",
+  "isDemo": true,
+  "items": [
+    {
+      "id": "pair-001",
+      "a": "images/a.png",
+      "b": "images/b.png",
+      "role": "main",
+      "metadata": {}
+    }
+  ],
+  "instructions": "",
+  "metadata": {},
+  "participantFields": [],
+  "presentation": {
+    "mode": "sequential",
+    "promptMs": 2000,
+    "imageMs": 3000
+  },
+  "schedule": {
+    "repetitions": 1,
+    "pairOrder": "random",
+    "itemOrder": "random",
+    "blockByGroup": false,
+    "avoidAdjacentRepeats": false,
+    "controlPlacement": "spread",
+    "practicePairOrder": "random",
+    "controlPairOrder": "random"
+  },
+  "quality": {
+    "minControlAccuracy": 1.0,
+    "requiredTrue": []
+  },
+  "analysis": {
+    "metric": "selection_rate"
+  }
+}

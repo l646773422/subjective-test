@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
+import 'study_v2.dart';
+export 'study_v2.dart';
+part 'v2_runtime.dart';
 
 const protocolViews = <String, List<int>>{
   'VRU_gz': [0, 10, 20, 30],
@@ -76,6 +79,9 @@ List<Map<String, dynamic>> records(Object? value) =>
 class StudyCase {
   final String id, sequence, kind, gt, render, gtHash, renderHash, mapping;
   final int frame, view, iteration, width, height;
+  final int bWidth, bHeight;
+  final String? answer;
+  final Map<String, dynamic> metadata;
   const StudyCase({
     required this.id,
     required this.sequence,
@@ -90,7 +96,12 @@ class StudyCase {
     required this.width,
     required this.height,
     this.mapping = 'explicit',
-  });
+    int? bWidth,
+    int? bHeight,
+    this.answer = 'a',
+    this.metadata = const {},
+  }) : bWidth = bWidth ?? width,
+       bHeight = bHeight ?? height;
   factory StudyCase.fromJson(Map<String, dynamic> j) => StudyCase(
     id: j['id'] as String,
     sequence: j['sequence'] as String,
@@ -128,6 +139,11 @@ class Experiment {
   final bool isDemo;
   final int seed, promptMs, imageMs;
   final List<StudyCase> cases;
+  final StudyDefinition? definition;
+  final Map<String, dynamic>? release;
+  bool get isV2 => definition != null;
+  String get studyId => definition?.studyId ?? id;
+  String get question => definition?.question ?? '哪一幅是真实拍摄图像？';
   const Experiment({
     required this.id,
     required this.name,
@@ -137,8 +153,116 @@ class Experiment {
     required this.cases,
     this.promptMs = 2000,
     this.imageMs = 3000,
+    this.definition,
+    this.release,
   });
+  factory Experiment.fromRelease(
+    Map<String, dynamic> source,
+    Map<String, dynamic> release,
+  ) {
+    final definition = StudyDefinition.fromJson(source);
+    check(
+      release['schema'] == 2 &&
+          release['studyId'] == definition.studyId &&
+          release['revisionId'] is String &&
+          RegExp(
+            r'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$',
+          ).hasMatch(release['revisionId'] as String) &&
+          DateTime.tryParse(release['createdAt'] as String? ?? '') != null,
+      '发布清单身份或时间无效',
+    );
+    final implementations = jsonMap(
+      release['implementations'],
+      'implementations',
+    );
+    final expected = {
+      'method': '2afc@1',
+      'scheduler': '2afc-schedule@1',
+      'quality': 'basic-quality@1',
+      'analysis': definition.profile == null
+          ? 'basic-analysis@1'
+          : 'photorealism-analysis@1',
+    };
+    check(
+      digestJson(implementations) == digestJson(expected),
+      '不支持此发布版本的执行或统计实现',
+    );
+    final manifest = jsonMap(release['definition'], 'definition');
+    check(
+      manifest['path'] == 'study.json' &&
+          manifest['sha256'] is String &&
+          RegExp(r'^[a-f0-9]{64}$').hasMatch(manifest['sha256'] as String),
+      '定义文件校验信息无效',
+    );
+    final assets = records(release['assets']);
+    final byPath = <String, Map<String, dynamic>>{};
+    for (final asset in assets) {
+      final path = assetPath(asset['path']);
+      check(
+        !byPath.containsKey(path) &&
+            asset['sha256'] is String &&
+            RegExp(r'^[a-f0-9]{64}$').hasMatch(asset['sha256'] as String) &&
+            asset['width'] is int &&
+            asset['height'] is int &&
+            (asset['width'] as int) > 0 &&
+            (asset['height'] as int) > 0 &&
+            (asset['width'] as int) * (asset['height'] as int) <= 40000000 &&
+            ['image/png', 'image/jpeg'].contains(asset['mediaType']),
+        '资源清单无效：$path',
+      );
+      byPath[path] = asset;
+    }
+    check(
+      byPath.keys.toSet().containsAll(definition.assets) &&
+          definition.assets.containsAll(byPath.keys),
+      '资源清单与题目引用不一致',
+    );
+    final cases = definition.items.map((item) {
+      final a = byPath[item['a']]!, b = byPath[item['b']]!;
+      final meta = jsonMap(item['metadata'], 'metadata');
+      return StudyCase(
+        id: item['id'] as String,
+        sequence: item['group'] as String? ?? '',
+        kind: item['role'] as String,
+        gt: item['a'] as String,
+        render: item['b'] as String,
+        gtHash: a['sha256'] as String,
+        renderHash: b['sha256'] as String,
+        frame: meta['frame'] is int ? meta['frame'] as int : -1,
+        view: meta['view'] is int ? meta['view'] as int : -1,
+        iteration: meta['iteration'] is int ? meta['iteration'] as int : 0,
+        width: a['width'] as int,
+        height: a['height'] as int,
+        bWidth: b['width'] as int,
+        bHeight: b['height'] as int,
+        answer: item['answer'] as String?,
+        metadata: Map<String, dynamic>.unmodifiable(meta),
+      );
+    }).toList();
+    final e = Experiment(
+      id: release['revisionId'] as String,
+      name: definition.name,
+      createdAt: release['createdAt'] as String,
+      isDemo: definition.isDemo,
+      seed: 0,
+      cases: List<StudyCase>.unmodifiable(cases),
+      promptMs: definition.presentation['promptMs'] as int,
+      imageMs: definition.presentation['imageMs'] as int,
+      definition: definition,
+      release: Map<String, dynamic>.unmodifiable(
+        jsonMap(immutableJson(release), 'release'),
+      ),
+    );
+    e.validate();
+    return e;
+  }
   factory Experiment.fromJson(Map<String, dynamic> j) {
+    if (j['schema'] == 2) {
+      return Experiment.fromRelease(
+        jsonMap(j['study'], 'study'),
+        jsonMap(j['release'], 'release'),
+      );
+    }
     if (j['schema'] != 1) throw const FormatException('不支持的题库版本');
     final e = Experiment(
       id: j['id'] as String,
@@ -178,19 +302,26 @@ class Experiment {
     return Experiment.fromJson({...value, 'id': digestJson(value)});
   }
 
-  Map<String, dynamic> toJson({bool withId = true}) => {
-    'schema': 1,
-    if (withId) 'id': id,
-    'name': name,
-    'createdAt': createdAt,
-    'isDemo': isDemo,
-    'seed': seed,
-    'promptMs': promptMs,
-    'imageMs': imageMs,
-    'cases': cases.map((c) => c.toJson()).toList(),
-  };
+  Map<String, dynamic> toJson({bool withId = true}) => isV2
+      ? {'schema': 2, 'study': definition!.toJson(), 'release': release}
+      : {
+          'schema': 1,
+          if (withId) 'id': id,
+          'name': name,
+          'createdAt': createdAt,
+          'isDemo': isDemo,
+          'seed': seed,
+          'promptMs': promptMs,
+          'imageMs': imageMs,
+          'cases': cases.map((c) => c.toJson()).toList(),
+        };
   StudyCase caseById(String key) => cases.firstWhere((c) => c.id == key);
   void validate() {
+    if (isV2) {
+      StudyDefinition.fromJson(definition!.toJson());
+      if (definition!.profile != null) validatePhotorealism(this);
+      return;
+    }
     if (name.trim().isEmpty ||
         promptMs < 1000 ||
         promptMs > 3000 ||
@@ -242,21 +373,54 @@ class Experiment {
 class Trial {
   final String id, caseId;
   final bool capturedFirst;
-  const Trial(this.id, this.caseId, this.capturedFirst);
-  factory Trial.fromJson(Map<String, dynamic> j) => Trial(
-    j['id'] as String,
-    j['caseId'] as String,
-    j['capturedFirst'] as bool,
-  );
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'caseId': caseId,
-    'capturedFirst': capturedFirst,
-  };
+  final String? role;
+  final int repetition;
+  const Trial(
+    this.id,
+    this.caseId,
+    this.capturedFirst, {
+    this.role,
+    this.repetition = 1,
+  });
+  factory Trial.fromJson(Map<String, dynamic> j) {
+    if (j.containsKey('trialId')) {
+      check(
+        j['order'] is List &&
+            (j['order'] == null ||
+                jsonEncode(j['order']) == '["a","b"]' ||
+                jsonEncode(j['order']) == '["b","a"]'),
+        '呈现顺序无效',
+      );
+      return Trial(
+        j['trialId'] as String,
+        j['itemId'] as String,
+        (j['order'] as List).first == 'a',
+        role: j['role'] as String,
+        repetition: j['repetition'] as int,
+      );
+    }
+    return Trial(
+      j['id'] as String,
+      j['caseId'] as String,
+      j['capturedFirst'] as bool,
+    );
+  }
+  List<String> get order => capturedFirst ? ['a', 'b'] : ['b', 'a'];
+  String selected(int position) => order[position - 1];
+  Map<String, dynamic> toJson() => role != null
+      ? {
+          'trialId': id,
+          'itemId': caseId,
+          'role': role,
+          'repetition': repetition,
+          'order': order,
+        }
+      : {'id': id, 'caseId': caseId, 'capturedFirst': capturedFirst};
   int get correctChoice => capturedFirst ? 1 : 2;
 }
 
 List<Trial> buildSchedule(Experiment experiment, int seed) {
+  if (experiment.isV2) return buildV2Schedule(experiment, seed);
   final random = StableRandom(seed);
   final practice = experiment.cases.where((c) => c.kind == 'practice').toList()
     ..permute(random);
@@ -293,6 +457,9 @@ List<Trial> buildSchedule(Experiment experiment, int seed) {
 class StudySession {
   final String id, experimentId, participantId, startedAt;
   final int seed;
+  final int schema;
+  final String? studyId;
+  final String? schedulerVersion;
   final Map<String, dynamic> participant, display;
   final List<Trial> trials;
   final List<Map<String, dynamic>> answers, events;
@@ -312,14 +479,24 @@ class StudySession {
     this.completedAt,
     this.practiceStarted = false,
     this.formalStarted = false,
+    this.schema = 1,
+    this.studyId,
+    this.schedulerVersion,
   }) : answers = answers ?? [],
        events = events ?? [];
   bool get complete => completedAt != null && answers.length == trials.length;
   factory StudySession.fromJson(Map<String, dynamic> j) {
-    if (j['schema'] != 1) throw const FormatException('不支持的结果版本');
+    if (![1, 2].contains(j['schema'])) throw const FormatException('不支持的结果版本');
+    final v2 = j['schema'] == 2;
+    if (v2) {
+      check(
+        j['conditionId'] == (j['display'] as Map)['conditionId'],
+        '会话观看条件编号不一致',
+      );
+    }
     return StudySession(
-      id: j['id'] as String,
-      experimentId: j['experimentId'] as String,
+      id: j[v2 ? 'sessionId' : 'id'] as String,
+      experimentId: j[v2 ? 'revisionId' : 'experimentId'] as String,
       participantId: j['participantId'] as String,
       startedAt: j['startedAt'] as String,
       seed: j['seed'] as int,
@@ -331,12 +508,23 @@ class StudySession {
       completedAt: j['completedAt'] as String?,
       practiceStarted: j['practiceStarted'] as bool? ?? false,
       formalStarted: j['formalStarted'] as bool? ?? false,
+      schema: v2 ? 2 : 1,
+      studyId: j['studyId'] as String?,
+      schedulerVersion: j['schedulerVersion'] as String?,
     );
   }
   Map<String, dynamic> toJson() => {
-    'schema': 1,
-    'id': id,
-    'experimentId': experimentId,
+    'schema': schema,
+    if (schema == 2) ...{
+      'sessionId': id,
+      'studyId': studyId,
+      'revisionId': experimentId,
+      'conditionId': display['conditionId'],
+      'schedulerVersion': schedulerVersion,
+    } else ...{
+      'id': id,
+      'experimentId': experimentId,
+    },
     'participantId': participantId,
     'startedAt': startedAt,
     'seed': seed,
@@ -350,6 +538,11 @@ class StudySession {
     'formalStarted': formalStarted,
   };
   void validate(Experiment e) {
+    if (e.isV2) {
+      validateV2Session(this, e);
+      return;
+    }
+    check(schema == 1, '会话版本与实验不符');
     if (experimentId != e.id ||
         participantId.trim().isEmpty ||
         display['condition'] is! String ||
@@ -383,14 +576,26 @@ class StudySession {
   int controlCorrect(Experiment e) => answers.where((a) {
     final t = trials.firstWhere((t) => t.id == a['trialId']);
     return e.caseById(t.caseId).kind == 'control' &&
-        a['choice'] == t.correctChoice;
+        (e.isV2
+            ? a['selectedAlternative'] == e.caseById(t.caseId).answer
+            : a['choice'] == t.correctChoice);
   }).length;
   bool get eligible =>
       participant['normalVision'] == true &&
       participant['normalColorVision'] == true &&
       participant['organizerOrDeveloper'] != true;
-  bool valid(Experiment e) => complete && eligible && controlCorrect(e) == 2;
-  String status(Experiment e) => !complete
+  bool valid(Experiment e) => e.isV2
+      ? complete && v2Eligible(this, e) && v2ControlsPass(this, e)
+      : complete && eligible && controlCorrect(e) == 2;
+  String status(Experiment e) => e.isV2
+      ? (!complete
+            ? '未完成'
+            : !v2Eligible(this, e)
+            ? '参与条件不符'
+            : !v2ControlsPass(this, e)
+            ? '控制题未通过'
+            : '有效')
+      : !complete
       ? '未完成'
       : !eligible
       ? '参与条件不符'
@@ -400,6 +605,7 @@ class StudySession {
 }
 
 Map<String, dynamic> buildReport(Experiment e, List<StudySession> sessions) {
+  if (e.isV2) return buildV2Report(e, sessions);
   final conditions =
       sessions.map((s) => s.display['condition'].toString()).toSet().toList()
         ..sort();

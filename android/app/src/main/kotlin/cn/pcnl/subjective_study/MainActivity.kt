@@ -85,28 +85,21 @@ class MainActivity : FlutterActivity() {
             try {
                 destination.mkdirs()
                 var total = 0L
+                var countEntries = 0
                 fun copy(parent: String, target: File, depth: Int, directoryName: String) {
-                    require(depth <= 8) { "目录层级过深" }
-                    var entries = children(tree, parent)
-                    if (directoryName == "test") {
-                        entries = entries.filter { it.directory &&
-                            it.name.matches(Regex("ours_[0-9]+")) }
-                            .maxByOrNull { it.name.substring(5).toLongOrNull() ?: -1 }
-                            ?.let { listOf(it) } ?: emptyList()
-                    }
+                    require(depth <= 16) { "目录层级过深" }
+                    val entries = children(tree, parent)
                     for (entry in entries) {
+                        countEntries++
+                        require(countEntries <= 20000) { "目录文件数量过多，请导入精简测试包" }
                         val output = File(target, entry.name)
                         if (entry.directory) {
-                            if (entry.name.matches(Regex("frame[0-9]+")) ||
-                                entry.name.matches(Regex("ours_[0-9]+")) ||
-                                entry.name in listOf("test", "gt", "renders")) {
-                                output.mkdirs()
-                                copy(entry.id, output, depth + 1, entry.name)
-                            }
+                            output.mkdirs()
+                            copy(entry.id, output, depth + 1, entry.name)
                         } else if (entry.name.lowercase().endsWith(".png") ||
                             entry.name.lowercase().endsWith(".jpg") ||
                             entry.name.lowercase().endsWith(".jpeg") ||
-                            entry.name in listOf("view_ids.json", "DEMO_ONLY.txt")) {
+                            entry.name.lowercase().endsWith(".json")) {
                             val uri = DocumentsContract.buildDocumentUriUsingTree(tree, entry.id)
                             contentResolver.openInputStream(uri)?.use { input ->
                                 output.outputStream().use { out ->

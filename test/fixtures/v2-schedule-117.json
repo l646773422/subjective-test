@@ -1,0 +1,142 @@
+[
+  {
+    "trialId": "check0:1",
+    "itemId": "check0",
+    "role": "control",
+    "repetition": 1,
+    "order": [
+      "b",
+      "a"
+    ]
+  },
+  {
+    "trialId": "pair2:1",
+    "itemId": "pair2",
+    "role": "main",
+    "repetition": 1,
+    "order": [
+      "b",
+      "a"
+    ]
+  },
+  {
+    "trialId": "pair1:1",
+    "itemId": "pair1",
+    "role": "main",
+    "repetition": 1,
+    "order": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "trialId": "pair0:1",
+    "itemId": "pair0",
+    "role": "main",
+    "repetition": 1,
+    "order": [
+      "b",
+      "a"
+    ]
+  },
+  {
+    "trialId": "pair1:2",
+    "itemId": "pair1",
+    "role": "main",
+    "repetition": 2,
+    "order": [
+      "b",
+      "a"
+    ]
+  },
+  {
+    "trialId": "pair0:2",
+    "itemId": "pair0",
+    "role": "main",
+    "repetition": 2,
+    "order": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "trialId": "pair2:2",
+    "itemId": "pair2",
+    "role": "main",
+    "repetition": 2,
+    "order": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "trialId": "check1:1",
+    "itemId": "check1",
+    "role": "control",
+    "repetition": 1,
+    "order": [
+      "b",
+      "a"
+    ]
+  },
+  {
+    "trialId": "pair0:3",
+    "itemId": "pair0",
+    "role": "main",
+    "repetition": 3,
+    "order": [
+      "b",
+      "a"
+    ]
+  },
+  {
+    "trialId": "pair2:3",
+    "itemId": "pair2",
+    "role": "main",
+    "repetition": 3,
+    "order": [
+      "b",
+      "a"
+    ]
+  },
+  {
+    "trialId": "pair1:3",
+    "itemId": "pair1",
+    "role": "main",
+    "repetition": 3,
+    "order": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "trialId": "pair2:4",
+    "itemId": "pair2",
+    "role": "main",
+    "repetition": 4,
+    "order": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "trialId": "pair1:4",
+    "itemId": "pair1",
+    "role": "main",
+    "repetition": 4,
+    "order": [
+      "b",
+      "a"
+    ]
+  },
+  {
+    "trialId": "pair0:4",
+    "itemId": "pair0",
+    "role": "main",
+    "repetition": 4,
+    "order": [
+      "a",
+      "b"
+    ]
+  }
+]
