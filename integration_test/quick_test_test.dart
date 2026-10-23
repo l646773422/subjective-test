@@ -78,7 +78,7 @@ void main() {
       await click(const Key('quick-patch-enabled'));
       await enter(const Key('quick-patch-width'), '512');
       await enter(const Key('quick-patch-height'), '320');
-      expect(find.text('每人 4 对 / 8 次判断'), findsOneWidget);
+      expect(find.text('抽 4 组，共需答 8 题'), findsOneWidget);
       expect(find.text('Patch 512 × 320 像素'), findsOneWidget);
       await click(const Key('quick-stereo-enabled'));
       expect(

@@ -359,8 +359,9 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
           DropdownButtonFormField<int>(
             key: ValueKey('quick-repetitions-${model.repetitions}'),
             initialValue: model.repetitions,
+            isExpanded: true,
             decoration: const InputDecoration(
-              labelText: '每对判断次数',
+              labelText: '同一组图片测几遍',
               border: OutlineInputBorder(),
               isDense: true,
             ),
@@ -369,13 +370,30 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                 DropdownMenuItem(
                   value: n,
                   child: Text(
-                    '$n 次${n.isEven && model.base.schedule['pairOrder'] == 'balanced' ? ' · 先后次序平衡' : ''}',
+                    n.isEven && model.base.schedule['pairOrder'] == 'balanced'
+                        ? n == 2
+                              ? '测 2 遍（图片顺序互换）'
+                              : '测 $n 遍（两种顺序各 ${n ~/ 2} 遍）'
+                        : '测 $n 遍',
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
             ],
             onChanged: locked
                 ? null
                 : (n) => setState(() => model.repetitions = n!),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            model.repetitions == 1
+                ? '每组两张图只比较一次，答 1 题。'
+                : model.repetitions.isEven &&
+                      model.base.schedule['pairOrder'] == 'balanced'
+                ? model.repetitions == 2
+                      ? '同一组两张图，交换播放顺序，各答一次。'
+                      : '每组两张图共比较 ${model.repetitions} 次，两种播放顺序各占一半。'
+                : '每组两张图共比较 ${model.repetitions} 次，每次随机决定播放顺序。',
+            style: const TextStyle(color: Color(0xff67796e), fontSize: 12),
           ),
         ],
       ),
@@ -539,7 +557,7 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                   chip(
                     '候选池 ${model.available.values.fold(0, (a, b) => a + b)} 对',
                   ),
-                  chip('每人 ${model.selectedCount} 对 / ${model.judgments} 次判断'),
+                  chip('抽 ${model.selectedCount} 组，共需答 ${model.judgments} 题'),
                   chip(
                     model.stereoEnabled
                         ? '3D · ${model.layout == 'full_sbs' ? 'Full SBS' : 'Half SBS'}'

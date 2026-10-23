@@ -216,7 +216,7 @@ void main() {
         await click('quick-patch-enabled');
         await enter('quick-patch-width', '144');
         await enter('quick-patch-height', '96');
-        expect(find.text('每人 3 对 / 6 次判断'), findsOneWidget);
+        expect(find.text('抽 3 组，共需答 6 题'), findsOneWidget);
         expect(find.text('Patch 144 × 96 像素'), findsOneWidget);
         await click('quick-stereo-enabled');
         expect(
