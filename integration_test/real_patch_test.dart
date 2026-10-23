@@ -24,7 +24,7 @@ void main() {
       final repo = StudyRepository(root);
       final d = await repo.loadRenderDirectory(Directory(sourcePath));
       final source = d.definition.toJson();
-      (source['presentation'] as Map)['patch'] = {'area': 0.25};
+      (source['presentation'] as Map)['patch'] = {'width': 512, 'height': 512};
       (source['presentation'] as Map)['promptMs'] = 0;
       final e = await repo.publishDraft(await repo.saveDraft(source));
       int seed = 117;
@@ -75,8 +75,12 @@ void main() {
 
       await reach(StudyStage.imageA);
       expect(screen.runner.imageA!.width, 3840);
-      expect(screen.runner.trial.patch!['width'], 1920);
-      expect(screen.runner.trial.patch!['height'], 1080);
+      expect(screen.runner.trial.patch!['width'], 512);
+      expect(screen.runner.trial.patch!['height'], 512);
+      for (final trial in s.trials) {
+        expect(trial.patch!['width'], 512);
+        expect(trial.patch!['height'], 512);
+      }
       await support.capture(tester, repo, 'real-4k-patch');
       await reach(StudyStage.answer);
       await tester.tap(find.byKey(const Key('answer-1')));

@@ -115,7 +115,11 @@ void main() {
       final temp = await Directory.systemTemp.createTemp('stereo-patch-');
       addTearDown(() => temp.delete(recursive: true));
       final repo = StudyRepository(Directory('${temp.path}/repo'));
-      final d = await stereoFixture(repo, Directory('${temp.path}/source'));
+      final d = await stereoFixture(
+        repo,
+        Directory('${temp.path}/source'),
+        legacyArea: true,
+      );
       final e = await repo.publishDraft(d);
       final noPatch = d.definition.toJson();
       (noPatch['presentation'] as Map).remove('patch');
@@ -231,6 +235,81 @@ void main() {
       expect(runner.imageA, isNull);
       expect(runner.imageARight, isNull);
       runner.dispose();
+    },
+  );
+
+  test(
+    'pixel patches keep exact independent dimensions, freeze sessions and reject oversized candidates',
+    () async {
+      final temp = await Directory.systemTemp.createTemp('pixel-patch-');
+      addTearDown(() => temp.delete(recursive: true));
+      final repo = StudyRepository(Directory('${temp.path}/repo'));
+      final d = await stereoFixture(repo, Directory('${temp.path}/source'));
+      final e = await repo.publishDraft(d);
+      expect(e.definition!.schedulerVersion, '2afc-schedule@4');
+      expect(e.definition!.stereo!['layout'], 'full_sbs');
+      final s = stereoSession(e);
+      await repo.pinSelection(e, s);
+      await repo.save(s);
+      final restored = (await repo.sessions(e)).single;
+      restored.validate(e);
+      expect(
+        restored.trials.map((t) => t.toJson()),
+        s.trials.map((t) => t.toJson()),
+      );
+      for (final trial in s.trials) {
+        expect(trial.patch!['width'], 128);
+        expect(trial.patch!['height'], 96);
+        expect(trial.patch!['x'], inInclusiveRange(0, 320 - 128));
+        expect(trial.patch!['y'], inInclusiveRange(0, 180 - 96));
+        expect(
+          s.trials.firstWhere((t) => t.caseId == trial.caseId).patch,
+          trial.patch,
+        );
+      }
+      // A fixed pixel region has the same dimensions on 1080p and 4K.
+      final random = StableRandom(117);
+      for (final (width, height) in [(1920, 1080), (3840, 2160)]) {
+        final patch = samplePixelPatch(width, height, 512, 320, random);
+        expect(patch['width'], 512);
+        expect(patch['height'], 320);
+      }
+      expect(samplePixelPatch(320, 180, 320, 180, random), {
+        'x': 0,
+        'y': 0,
+        'width': 320,
+        'height': 180,
+      });
+      for (final (width, height) in [(321, 90), (160, 181)]) {
+        final source = d.definition.toJson();
+        (source['presentation'] as Map)['patch'] = {
+          'width': width,
+          'height': height,
+        };
+        final draft = await repo.saveDraft(source);
+        await expectLater(repo.publishDraft(draft), throwsFormatException);
+      }
+      for (final patch in [
+        <String, dynamic>{},
+        {'width': 1},
+        {'height': 1},
+        {'width': 0, 'height': 1},
+        {'width': true, 'height': 2},
+        {'width': 1.5, 'height': 2},
+        {'width': 40000000, 'height': 2},
+        {'width': 128, 'height': 96, 'area': 0.25},
+      ]) {
+        final source = d.definition.toJson();
+        (source['presentation'] as Map)['patch'] = patch;
+        expect(() => StudyDefinition.fromJson(source), throwsFormatException);
+      }
+      final source = d.definition.toJson();
+      (source['presentation'] as Map)['stereo'] = {};
+      expect(StudyDefinition.fromJson(source).stereo!['layout'], 'full_sbs');
+      expect(
+        d.definition.toJson()['presentation']['patch'].containsKey('area'),
+        false,
+      );
     },
   );
 

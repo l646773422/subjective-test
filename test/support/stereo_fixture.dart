@@ -10,7 +10,8 @@ Future<StudyDraft> stereoFixture(
   Directory source, {
   bool stereo = true,
   bool patch = true,
-  String layout = 'half_sbs',
+  bool legacyArea = false,
+  String layout = 'full_sbs',
 }) async {
   await source.create(recursive: true);
   final items = <Map<String, dynamic>>[];
@@ -66,7 +67,8 @@ Future<StudyDraft> stereoFixture(
         'promptMs': 50,
         'imageMs': 150,
         if (stereo) 'stereo': {'layout': layout, 'uiDisparity': 12},
-        if (patch) 'patch': {'area': 0.25},
+        if (patch)
+          'patch': legacyArea ? {'area': 0.25} : {'width': 128, 'height': 96},
       },
       'schedule': {
         'repetitions': 2,

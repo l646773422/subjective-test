@@ -109,7 +109,7 @@ def normalize(study, root=None):
     if "stereo" in presentation:
         stereo = presentation["stereo"]
         object_keys(stereo, ("layout", "uiDisparity", "pointerMapping"), "presentation.stereo")
-        stereo.setdefault("layout", "half_sbs")
+        stereo.setdefault("layout", "full_sbs")
         stereo.setdefault("uiDisparity", 0)
         stereo.setdefault("pointerMapping", "screen")
         require(stereo["pointerMapping"] in ("screen", "per_eye"), "invalid pointer mapping")
@@ -118,10 +118,18 @@ def normalize(study, root=None):
                 "UI disparity must be -64..64 logical pixels")
     if "patch" in presentation:
         patch = presentation["patch"]
-        object_keys(patch, ("area", "distribution"), "presentation.patch")
+        object_keys(patch, ("area", "width", "height", "distribution"), "presentation.patch")
         patch.setdefault("distribution", "center_triangular")
-        require(type(patch.get("area")) in (int, float) and 0.001 <= patch["area"] <= 1,
-                "patch area must be 0.001..1")
+        require(("area" in patch) != ("width" in patch or "height" in patch),
+                "patch requires pixel width/height, without legacy area")
+        if "area" in patch:
+            require(type(patch.get("area")) in (int, float) and 0.001 <= patch["area"] <= 1,
+                    "patch area must be 0.001..1")
+        else:
+            require(type(patch.get("width")) is int and type(patch.get("height")) is int
+                    and patch["width"] > 0 and patch["height"] > 0
+                    and patch["width"] * patch["height"] <= 40000000,
+                    "patch width/height must be positive integer pixels, at most 40 MP")
         require(patch["distribution"] == "center_triangular", "unsupported patch distribution")
     for key, low, high in (("promptMs", 0, 60000), ("imageMs", 1, 600000)):
         require(type(presentation[key]) is int and low <= presentation[key] <= high,

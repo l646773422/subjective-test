@@ -27,7 +27,7 @@ class StudyDataTests(unittest.TestCase):
         source['presentation'] = {'stereo': {}, 'patch': {'area': .25}}
         source['items'][0].update(aRight='eyes/a-right.png', bRight='eyes/b-right.png')
         effective = normalize(source)
-        self.assertEqual(effective['presentation']['stereo'], {'layout': 'half_sbs', 'uiDisparity': 0, 'pointerMapping': 'screen'})
+        self.assertEqual(effective['presentation']['stereo'], {'layout': 'full_sbs', 'uiDisparity': 0, 'pointerMapping': 'screen'})
         self.assertEqual(effective['presentation']['patch']['distribution'], 'center_triangular')
         for invalid in (0, 1.01, True, float('nan')):
             bad = copy.deepcopy(source)
@@ -37,6 +37,17 @@ class StudyDataTests(unittest.TestCase):
         del source['items'][0]['aRight']
         with self.assertRaises(StudyError):
             normalize(source)
+
+    def test_pixel_patch_contract_and_invalid_sizes(self):
+        source = minimal()
+        source['presentation'] = {'patch': {'width': 512, 'height': 320}}
+        patch = normalize(source)['presentation']['patch']
+        self.assertEqual(patch, {'width': 512, 'height': 320, 'distribution': 'center_triangular'})
+        for patch in ({}, {'width': 512}, {'height': 320}, {'width': 0, 'height': 1},
+                      {'width': 1.5, 'height': 2}, {'width': True, 'height': 2},
+                      {'width': 40000000, 'height': 2}, {'width': 512, 'height': 320, 'area': .25}):
+            with self.subTest(patch=patch), self.assertRaises(StudyError):
+                normalize({**source, 'presentation': {'patch': patch}})
 
     def test_minimal_defaults_without_mutating_source(self):
         source = minimal()

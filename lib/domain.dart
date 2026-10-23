@@ -229,6 +229,14 @@ class Experiment {
     );
     final cases = definition.items.map((item) {
       final a = byPath[item['a']]!, b = byPath[item['b']]!;
+      final patch = definition.patch;
+      if (patch != null && patch.containsKey('width')) {
+        check(
+          (patch['width'] as int) <= (a['width'] as int) &&
+              (patch['height'] as int) <= (a['height'] as int),
+          '${item['id']} 的 Patch ${patch['width']}×${patch['height']} 超过原图 ${a['width']}×${a['height']}',
+        );
+      }
       if (definition.stereo != null || definition.patch != null) {
         check(
           itemAssets(item).every(

@@ -130,7 +130,7 @@ class StudyDefinition {
         'uiDisparity',
         'pointerMapping',
       ], 'presentation.stereo');
-      stereo.putIfAbsent('layout', () => 'half_sbs');
+      stereo.putIfAbsent('layout', () => 'full_sbs');
       stereo.putIfAbsent('uiDisparity', () => 0);
       stereo.putIfAbsent('pointerMapping', () => 'screen');
       check(
@@ -150,13 +150,36 @@ class StudyDefinition {
     }
     if (presentation.containsKey('patch')) {
       final patch = jsonMap(presentation['patch'], 'presentation.patch');
-      keys(patch, ['area', 'distribution'], 'presentation.patch');
+      keys(patch, [
+        'area',
+        'width',
+        'height',
+        'distribution',
+      ], 'presentation.patch');
       patch.putIfAbsent('distribution', () => 'center_triangular');
-      final area = patch['area'];
       check(
-        area is num && area.isFinite && area >= 0.001 && area <= 1,
-        'Patch 面积比例必须为 0.001～1',
+        patch.containsKey('area') !=
+            (patch.containsKey('width') || patch.containsKey('height')),
+        'Patch 需填写像素 width、height；不能同时填写旧 area',
       );
+      if (patch.containsKey('area')) {
+        final area = patch['area'];
+        check(
+          area is num && area.isFinite && area >= 0.001 && area <= 1,
+          'Patch 面积比例必须为 0.001～1',
+        );
+      } else {
+        check(
+          patch['width'] is int &&
+              patch['height'] is int &&
+              (patch['width'] as int) > 0 &&
+              (patch['height'] as int) > 0 &&
+              (patch['width'] as int) <= 40000000 &&
+              (patch['height'] as int) <= 40000000 &&
+              (patch['width'] as int) * (patch['height'] as int) <= 40000000,
+          'Patch 宽、高必须为正整数像素，面积不超过 4000 万像素',
+        );
+      }
       check(patch['distribution'] == 'center_triangular', 'Patch 分布无效');
       presentation['patch'] = patch;
     }
@@ -481,7 +504,9 @@ class StudyDefinition {
       ? null
       : jsonMap(presentation['patch'], 'patch');
   String get schedulerVersion => patch != null
-      ? '2afc-schedule@3'
+      ? patch!.containsKey('width')
+            ? '2afc-schedule@4'
+            : '2afc-schedule@3'
       : sampling != null
       ? '2afc-schedule@2'
       : '2afc-schedule@1';

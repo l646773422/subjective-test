@@ -117,15 +117,38 @@ List<Trial> buildV2Schedule(Experiment e, int seed) {
         sample: t.sample,
         patch: patches.putIfAbsent(t.caseId, () {
           final c = e.caseById(t.caseId);
-          return samplePatch(
+          return sampleConfiguredPatch(
             c.width,
             c.height,
-            (d.patch!['area'] as num).toDouble(),
+            d.patch!,
             patchRandom,
           );
         }),
       ),
   ];
+}
+
+Map<String, dynamic> sampleConfiguredPatch(
+  int width,
+  int height,
+  Map<String, dynamic> config,
+  StableRandom random,
+) {
+  if (config.containsKey('area')) {
+    return samplePatch(
+      width,
+      height,
+      (config['area'] as num).toDouble(),
+      random,
+    );
+  }
+  return samplePixelPatch(
+    width,
+    height,
+    config['width'] as int,
+    config['height'] as int,
+    random,
+  );
 }
 
 Map<String, dynamic> samplePatch(
@@ -137,6 +160,20 @@ Map<String, dynamic> samplePatch(
   final scale = sqrt(area);
   final w = max(1, (width * scale).round()),
       h = max(1, (height * scale).round());
+  return samplePixelPatch(width, height, w, h, random);
+}
+
+Map<String, dynamic> samplePixelPatch(
+  int width,
+  int height,
+  int w,
+  int h,
+  StableRandom random,
+) {
+  check(
+    w > 0 && h > 0 && w <= width && h <= height,
+    'Patch $w×$h 超过原图 $width×$height 或尺寸无效',
+  );
   // Mean of two uniforms: triangular density, highest in the center, zero at edges.
   double centered() => (random.nextDouble() + random.nextDouble()) / 2;
   return Map<String, dynamic>.unmodifiable({

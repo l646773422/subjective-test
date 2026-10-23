@@ -21,6 +21,7 @@ class DraftEditor extends StatefulWidget {
 class _DraftEditorState extends State<DraftEditor> {
   late Map<String, dynamic> source;
   late final TextEditingController name, question, instructions, disparity;
+  late final TextEditingController patchWidth, patchHeight;
   Timer? timer;
   bool dirty = false, busy = false, leaving = false;
   String? error;
@@ -31,6 +32,9 @@ class _DraftEditorState extends State<DraftEditor> {
   void initState() {
     super.initState();
     source = widget.draft.definition.toJson();
+    final patch = (source['presentation'] as Map)['patch'];
+    patchWidth = TextEditingController(text: '${patch?['width'] ?? 512}');
+    patchHeight = TextEditingController(text: '${patch?['height'] ?? 512}');
     disparity = TextEditingController(
       text: '${(source['presentation'] as Map)['stereo']?['uiDisparity'] ?? 0}',
     );
@@ -48,6 +52,8 @@ class _DraftEditorState extends State<DraftEditor> {
     question.dispose();
     instructions.dispose();
     disparity.dispose();
+    patchWidth.dispose();
+    patchHeight.dispose();
     super.dispose();
   }
 
@@ -211,6 +217,9 @@ class _DraftEditorState extends State<DraftEditor> {
     controller.dispose();
     if (result != null && mounted) {
       source = result;
+      final patch = (source['presentation'] as Map)['patch'];
+      patchWidth.text = '${patch?['width'] ?? 512}';
+      patchHeight.text = '${patch?['height'] ?? 512}';
       disparity.text =
           '${(source['presentation'] as Map)['stereo']?['uiDisparity'] ?? 0}';
       name.text = source['name'] as String;
@@ -555,7 +564,7 @@ class _DraftEditorState extends State<DraftEditor> {
                                   if (v) {
                                     disparity.text = '0';
                                     p['stereo'] = {
-                                      'layout': 'half_sbs',
+                                      'layout': 'full_sbs',
                                       'uiDisparity': 0,
                                     };
                                   } else {
@@ -628,7 +637,12 @@ class _DraftEditorState extends State<DraftEditor> {
                               : (v) {
                                   if (v) {
                                     p['patch'] = {
-                                      'area': 0.25,
+                                      'width':
+                                          int.tryParse(patchWidth.text) ??
+                                          patchWidth.text,
+                                      'height':
+                                          int.tryParse(patchHeight.text) ??
+                                          patchHeight.text,
                                       'distribution': 'center_triangular',
                                     };
                                   } else {
@@ -637,25 +651,61 @@ class _DraftEditorState extends State<DraftEditor> {
                                   changed();
                                 },
                         ),
-                        if (p['patch'] != null) ...[
+                        if (p['patch']?['area'] != null) ...[
                           Text(
-                            '截取面积：${((p['patch']['area'] as num) * 100).toStringAsFixed(1)}% · 保持原图宽高比，放大适应显示区域',
+                            '沿用旧版面积配置 ${((p['patch']['area'] as num) * 100).toStringAsFixed(1)}%；已有会话保持原裁剪。',
                           ),
-                          Slider(
-                            key: const Key('patch-area'),
-                            min: 0.1,
-                            max: 100,
-                            divisions: 999,
-                            value: (p['patch']['area'] as num).toDouble() * 100,
-                            label:
-                                '${((p['patch']['area'] as num) * 100).toStringAsFixed(1)}%',
-                            onChanged: busy
+                          TextButton(
+                            key: const Key('patch-use-pixels'),
+                            onPressed: busy
                                 ? null
-                                : (v) {
-                                    p['patch']['area'] = v / 100;
+                                : () {
+                                    p['patch'] = {
+                                      'width': 512,
+                                      'height': 512,
+                                      'distribution': 'center_triangular',
+                                    };
+                                    patchWidth.text = patchHeight.text = '512';
                                     changed();
                                   },
+                            child: const Text('改用像素宽高'),
                           ),
+                        ],
+                        if (p['patch'] != null &&
+                            p['patch']['area'] == null) ...[
+                          Wrap(
+                            spacing: 14,
+                            runSpacing: 14,
+                            children: [
+                              for (final (dimension, label, controller) in [
+                                ('width', 'Patch 宽 / 像素', patchWidth),
+                                ('height', 'Patch 高 / 像素', patchHeight),
+                              ])
+                                SizedBox(
+                                  width: 200,
+                                  child: TextField(
+                                    key: Key('patch-$dimension'),
+                                    controller: controller,
+                                    enabled: !busy,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: label,
+                                    ),
+                                    onChanged: (_) {
+                                      p['patch']['width'] =
+                                          int.tryParse(patchWidth.text) ??
+                                          patchWidth.text;
+                                      p['patch']['height'] =
+                                          int.tryParse(patchHeight.text) ??
+                                          patchHeight.text;
+                                      changed();
+                                    },
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('按原图像素截取，可设置任意宽高比；区域等比适应显示。宽、高不能超过任一候选图。'),
                         ],
                         const SizedBox(height: 16),
                         Wrap(
@@ -1017,10 +1067,10 @@ class _DraftPreviewState extends State<DraftPreview> {
         );
       }
       if (widget.presentation['patch'] != null) {
-        patch = samplePatch(
+        patch = sampleConfiguredPatch(
           first.width,
           first.height,
-          (widget.presentation['patch']['area'] as num).toDouble(),
+          Map<String, dynamic>.from(widget.presentation['patch'] as Map),
           StableRandom(DateTime.now().microsecondsSinceEpoch),
         );
       }
