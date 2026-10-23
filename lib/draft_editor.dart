@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'repository.dart';
 import 'domain.dart';
 import 'study_templates.dart';
+import 'stimulus_view.dart';
 
 class DraftEditor extends StatefulWidget {
   final StudyRepository repository;
@@ -19,7 +20,7 @@ class DraftEditor extends StatefulWidget {
 
 class _DraftEditorState extends State<DraftEditor> {
   late Map<String, dynamic> source;
-  late final TextEditingController name, question, instructions;
+  late final TextEditingController name, question, instructions, disparity;
   Timer? timer;
   bool dirty = false, busy = false, leaving = false;
   String? error;
@@ -30,6 +31,9 @@ class _DraftEditorState extends State<DraftEditor> {
   void initState() {
     super.initState();
     source = widget.draft.definition.toJson();
+    disparity = TextEditingController(
+      text: '${(source['presentation'] as Map)['stereo']?['uiDisparity'] ?? 0}',
+    );
     name = TextEditingController(text: source['name'] as String);
     question = TextEditingController(text: source['question'] as String);
     instructions = TextEditingController(
@@ -43,6 +47,7 @@ class _DraftEditorState extends State<DraftEditor> {
     name.dispose();
     question.dispose();
     instructions.dispose();
+    disparity.dispose();
     super.dispose();
   }
 
@@ -88,42 +93,42 @@ class _DraftEditorState extends State<DraftEditor> {
     try {
       Map<String, dynamic> item;
       if (index == null) {
-        final a = await FilePicker.platform.pickFiles(
-          dialogTitle: '选择素材 a',
-          type: FileType.image,
-          withData: true,
-        );
-        if (a == null) return;
-        final b = await FilePicker.platform.pickFiles(
-          dialogTitle: '选择素材 b',
-          type: FileType.image,
-          withData: true,
-        );
-        if (b == null) return;
-        final aPath = await repo.addDraftAsset(
-          widget.draft,
-          a.files.single.bytes!,
-          a.files.single.name,
-        );
-        final bPath = await repo.addDraftAsset(
-          widget.draft,
-          b.files.single.bytes!,
-          b.files.single.name,
-        );
         item = {
           'id': 'pair-${uuid().substring(0, 8)}',
-          'a': aPath,
-          'b': bPath,
           'role': 'main',
           'metadata': {},
         };
+        for (final key in [
+          'a',
+          'b',
+          if ((source['presentation'] as Map)['stereo'] != null) ...[
+            'aRight',
+            'bRight',
+          ],
+        ]) {
+          final picked = await FilePicker.platform.pickFiles(
+            dialogTitle:
+                '选择 ${{'a': 'A 左眼 / 2D', 'b': 'B 左眼 / 2D', 'aRight': 'A 右眼', 'bRight': 'B 右眼'}[key]}',
+            type: FileType.image,
+            withData: true,
+          );
+          if (picked == null) return;
+          item[key] = await repo.addDraftAsset(
+            widget.draft,
+            picked.files.single.bytes!,
+            picked.files.single.name,
+          );
+        }
       } else {
         item = items[index];
       }
       if (!mounted) return;
       final edited = await showDialog<Map<String, dynamic>>(
         context: context,
-        builder: (_) => ItemDialog(item: item),
+        builder: (_) => ItemDialog(
+          item: item,
+          stereo: (source['presentation'] as Map)['stereo'] != null,
+        ),
       );
       if (edited == null) return;
       final list = items;
@@ -206,6 +211,8 @@ class _DraftEditorState extends State<DraftEditor> {
     controller.dispose();
     if (result != null && mounted) {
       source = result;
+      disparity.text =
+          '${(source['presentation'] as Map)['stereo']?['uiDisparity'] ?? 0}';
       name.text = source['name'] as String;
       question.text = source['question'] as String;
       instructions.text = source['instructions'] as String;
@@ -499,6 +506,11 @@ class _DraftEditorState extends State<DraftEditor> {
                                                         p['promptMs'] as int,
                                                     imageMs:
                                                         p['imageMs'] as int,
+                                                    presentation:
+                                                        Map<
+                                                          String,
+                                                          dynamic
+                                                        >.from(p),
                                                   ),
                                                 ),
                                               ),
@@ -529,6 +541,123 @@ class _DraftEditorState extends State<DraftEditor> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          key: const Key('stereo-enabled'),
+                          title: const Text('3D 双眼 SBS'),
+                          subtitle: const Text(
+                            'A、B 仍先后播放；每幅同时显示左右眼。发布前需补齐每题双眼路径。',
+                          ),
+                          value: p['stereo'] != null,
+                          onChanged: busy
+                              ? null
+                              : (v) {
+                                  if (v) {
+                                    disparity.text = '0';
+                                    p['stereo'] = {
+                                      'layout': 'half_sbs',
+                                      'uiDisparity': 0,
+                                    };
+                                  } else {
+                                    p.remove('stereo');
+                                  }
+                                  changed();
+                                },
+                        ),
+                        if (p['stereo'] != null)
+                          Wrap(
+                            spacing: 14,
+                            runSpacing: 14,
+                            children: [
+                              choice<String>(
+                                'SBS 输出格式',
+                                (p['stereo'] as Map)['layout'] as String,
+                                ['half_sbs', 'full_sbs'],
+                                (v) {
+                                  (p['stereo'] as Map)['layout'] = v;
+                                  changed();
+                                },
+                                labelFor: (v) => v == 'half_sbs'
+                                    ? 'Half SBS（半宽）'
+                                    : 'Full SBS（全宽）',
+                              ),
+                              choice<String>(
+                                '鼠标映射',
+                                (p['stereo'] as Map)['pointerMapping']
+                                        as String? ??
+                                    'screen',
+                                ['screen', 'per_eye'],
+                                (v) {
+                                  (p['stereo'] as Map)['pointerMapping'] = v;
+                                  changed();
+                                },
+                                labelFor: (v) =>
+                                    v == 'screen' ? '整屏连续' : '按半屏（调试）',
+                              ),
+                              SizedBox(
+                                width: 240,
+                                child: TextFormField(
+                                  controller: disparity,
+                                  decoration: const InputDecoration(
+                                    labelText: 'UI 双眼视差 / 逻辑像素',
+                                  ),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        signed: true,
+                                        decimal: true,
+                                      ),
+                                  onChanged: (text) {
+                                    (p['stereo'] as Map)['uiDisparity'] =
+                                        double.tryParse(text) ?? text;
+                                    changed();
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          key: const Key('patch-enabled'),
+                          title: const Text('随机 Patch 展示'),
+                          subtitle: const Text(
+                            '每人抽帧和视点后，按中心偏重分布抽取区域。A、B 和双眼共用区域；重复题与恢复保持一致。',
+                          ),
+                          value: p['patch'] != null,
+                          onChanged: busy
+                              ? null
+                              : (v) {
+                                  if (v) {
+                                    p['patch'] = {
+                                      'area': 0.25,
+                                      'distribution': 'center_triangular',
+                                    };
+                                  } else {
+                                    p.remove('patch');
+                                  }
+                                  changed();
+                                },
+                        ),
+                        if (p['patch'] != null) ...[
+                          Text(
+                            '截取面积：${((p['patch']['area'] as num) * 100).toStringAsFixed(1)}% · 保持原图宽高比，放大适应显示区域',
+                          ),
+                          Slider(
+                            key: const Key('patch-area'),
+                            min: 0.1,
+                            max: 100,
+                            divisions: 999,
+                            value: (p['patch']['area'] as num).toDouble() * 100,
+                            label:
+                                '${((p['patch']['area'] as num) * 100).toStringAsFixed(1)}%',
+                            onChanged: busy
+                                ? null
+                                : (v) {
+                                    p['patch']['area'] = v / 100;
+                                    changed();
+                                  },
+                          ),
+                        ],
+                        const SizedBox(height: 16),
                         Wrap(
                           spacing: 14,
                           runSpacing: 14,
@@ -669,19 +798,28 @@ class _DraftEditorState extends State<DraftEditor> {
 
 class ItemDialog extends StatefulWidget {
   final Map<String, dynamic> item;
-  const ItemDialog({super.key, required this.item});
+  final bool stereo;
+  const ItemDialog({super.key, required this.item, this.stereo = false});
   @override
   State<ItemDialog> createState() => _ItemDialogState();
 }
 
 class _ItemDialogState extends State<ItemDialog> {
   late final TextEditingController id, group, metadata;
+  final paths = <String, TextEditingController>{};
   late String role;
   String? answer, error;
   @override
   void initState() {
     super.initState();
     final i = widget.item;
+    for (final key in [
+      'a',
+      'b',
+      if (widget.stereo) ...['aRight', 'bRight'],
+    ]) {
+      paths[key] = TextEditingController(text: i[key] as String? ?? '');
+    }
     id = TextEditingController(text: i['id'] as String);
     group = TextEditingController(text: i['group'] as String? ?? '');
     metadata = TextEditingController(
@@ -696,6 +834,9 @@ class _ItemDialogState extends State<ItemDialog> {
     id.dispose();
     group.dispose();
     metadata.dispose();
+    for (final controller in paths.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -712,6 +853,17 @@ class _ItemDialogState extends State<ItemDialog> {
               controller: id,
               decoration: const InputDecoration(labelText: '题目编号'),
             ),
+            for (final entry in paths.entries)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: TextField(
+                  controller: entry.value,
+                  decoration: InputDecoration(
+                    labelText:
+                        '${{'a': 'A 左眼 / 2D', 'b': 'B 左眼 / 2D', 'aRight': 'A 右眼', 'bRight': 'B 右眼'}[entry.key]} · 素材目录相对路径',
+                  ),
+                ),
+              ),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
               initialValue: role,
@@ -770,6 +922,8 @@ class _ItemDialogState extends State<ItemDialog> {
             check(role != 'control' || answer != null, '控制题需要标准答案');
             final result = {
               ...widget.item,
+              for (final entry in paths.entries)
+                entry.key: assetPath(entry.value.text.trim()),
               'id': id.text.trim(),
               'role': role,
               'metadata': jsonMap(jsonDecode(metadata.text), 'metadata'),
@@ -797,6 +951,7 @@ class DraftPreview extends StatefulWidget {
   final Map<String, dynamic> item;
   final String question;
   final int promptMs, imageMs;
+  final Map<String, dynamic> presentation;
   const DraftPreview({
     super.key,
     required this.directory,
@@ -805,13 +960,15 @@ class DraftPreview extends StatefulWidget {
     required this.promptMs,
     required this.imageMs,
     this.read,
+    this.presentation = const {},
   });
   @override
   State<DraftPreview> createState() => _DraftPreviewState();
 }
 
 class _DraftPreviewState extends State<DraftPreview> {
-  ui.Image? a, b;
+  final images = <String, ui.Image>{};
+  Map<String, dynamic>? patch;
   Timer? timer;
   int stage = -1;
   String? error;
@@ -823,7 +980,12 @@ class _DraftPreviewState extends State<DraftPreview> {
 
   Future<void> load() async {
     try {
-      for (final key in ['a', 'b']) {
+      for (final key in [
+        'a',
+        'b',
+        if (widget.presentation['stereo'] != null) ...['aRight', 'bRight'],
+      ]) {
+        check(widget.item[key] is String, '请先补齐左右眼图片路径');
         final codec = await ui.instantiateImageCodec(
           widget.read != null
               ? await widget.read!(widget.item[key] as String)
@@ -831,17 +993,36 @@ class _DraftPreviewState extends State<DraftPreview> {
                   '${widget.directory.path}/${widget.item[key]}',
                 ).readAsBytes(),
         );
-        final image = (await codec.getNextFrame()).image;
-        codec.dispose();
+        late final ui.Image image;
+        try {
+          image = (await codec.getNextFrame()).image;
+        } finally {
+          codec.dispose();
+        }
         if (!mounted) {
           image.dispose();
           return;
         }
-        if (key == 'a') {
-          a = image;
-        } else {
-          b = image;
-        }
+        images[key] = image;
+      }
+      final first = images['a']!;
+      if (widget.presentation['patch'] != null ||
+          widget.presentation['stereo'] != null) {
+        check(
+          images.values.every(
+            (image) =>
+                image.width == first.width && image.height == first.height,
+          ),
+          'A、B 与双眼图片必须具有相同尺寸',
+        );
+      }
+      if (widget.presentation['patch'] != null) {
+        patch = samplePatch(
+          first.width,
+          first.height,
+          (widget.presentation['patch']['area'] as num).toDouble(),
+          StableRandom(DateTime.now().microsecondsSinceEpoch),
+        );
       }
       advance(widget.promptMs == 0 ? 1 : 0);
     } catch (e) {
@@ -865,55 +1046,85 @@ class _DraftPreviewState extends State<DraftPreview> {
   @override
   void dispose() {
     timer?.cancel();
-    a?.dispose();
-    b?.dispose();
+    for (final image in images.values) {
+      image.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: const Color(0xff808080),
-    appBar: AppBar(title: const Text('题次预览 · 不保存答案')),
-    body: error != null
-        ? Center(child: Text(error!))
-        : stage < 0
-        ? const Center(child: CircularProgressIndicator())
-        : stage == 0 || stage == 2
-        ? Center(
-            child: Text(
-              stage == 0 ? '第一幅' : '第二幅',
-              style: const TextStyle(fontSize: 50, color: Colors.white),
-            ),
-          )
-        : stage == 1 || stage == 3
-        ? SizedBox.expand(
-            child: RawImage(image: stage == 1 ? a : b, fit: BoxFit.contain),
-          )
-        : Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    widget.question,
-                    style: const TextStyle(fontSize: 26, color: Colors.white),
+    body: StereoSurface(
+      stereo: widget.presentation['stereo'] == null
+          ? null
+          : Map<String, dynamic>.from(widget.presentation['stereo'] as Map),
+      stimulus: error == null && (stage == 1 || stage == 3),
+      builder: (context, eye) => Stack(
+        fit: StackFit.expand,
+        children: [
+          error != null
+              ? Center(child: Text(error!))
+              : stage < 0
+              ? const Center(child: CircularProgressIndicator())
+              : stage == 0 || stage == 2
+              ? Center(
+                  child: Text(
+                    stage == 0 ? '第一幅' : '第二幅',
+                    style: const TextStyle(fontSize: 50, color: Colors.white),
                   ),
-                  const SizedBox(height: 24),
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 12,
-                    children: [
-                      for (final label in ['第一幅', '第二幅'])
-                        FilledButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: Text(label),
+                )
+              : stage == 1 || stage == 3
+              ? SizedBox.expand(
+                  child: StimulusView(
+                    image:
+                        images[stage == 1
+                            ? (eye == 0 ? 'a' : 'aRight')
+                            : (eye == 0 ? 'b' : 'bRight')]!,
+                    patch: patch,
+                  ),
+                )
+              : Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.question,
+                          style: const TextStyle(
+                            fontSize: 26,
+                            color: Colors.white,
+                          ),
                         ),
-                    ],
+                        const SizedBox(height: 24),
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 12,
+                          children: [
+                            for (final label in ['第一幅', '第二幅'])
+                              FilledButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text(label),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
+          if (stage != 1 && stage != 3 || error != null)
+            Align(
+              alignment: Alignment.topLeft,
+              child: SafeArea(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('返回 · 题次预览（不保存答案）'),
+                ),
               ),
             ),
-          ),
+        ],
+      ),
+    ),
   );
 }

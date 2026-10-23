@@ -22,6 +22,22 @@ def minimal():
 
 
 class StudyDataTests(unittest.TestCase):
+    def test_stereo_patch_contract_and_required_right_eyes(self):
+        source = minimal()
+        source['presentation'] = {'stereo': {}, 'patch': {'area': .25}}
+        source['items'][0].update(aRight='eyes/a-right.png', bRight='eyes/b-right.png')
+        effective = normalize(source)
+        self.assertEqual(effective['presentation']['stereo'], {'layout': 'half_sbs', 'uiDisparity': 0, 'pointerMapping': 'screen'})
+        self.assertEqual(effective['presentation']['patch']['distribution'], 'center_triangular')
+        for invalid in (0, 1.01, True, float('nan')):
+            bad = copy.deepcopy(source)
+            bad['presentation']['patch']['area'] = invalid
+            with self.assertRaises(StudyError):
+                normalize(bad)
+        del source['items'][0]['aRight']
+        with self.assertRaises(StudyError):
+            normalize(source)
+
     def test_minimal_defaults_without_mutating_source(self):
         source = minimal()
         before = copy.deepcopy(source)

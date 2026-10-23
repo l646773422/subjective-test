@@ -48,6 +48,12 @@ String assetPath(Object? value) {
   return path;
 }
 
+Iterable<String> itemAssets(Map<String, dynamic> item) sync* {
+  for (final key in ['a', 'b', 'aRight', 'bRight']) {
+    if (item[key] != null) yield item[key] as String;
+  }
+}
+
 class StudyDefinition {
   final Map<String, dynamic> _data;
   StudyDefinition._(this._data);
@@ -111,11 +117,50 @@ class StudyDefinition {
       keys(supplied, [
         ...entry.value.keys,
         if (entry.key == 'analysis') 'profile',
+        if (entry.key == 'presentation') ...['stereo', 'patch'],
       ], entry.key);
       data[entry.key] = {...entry.value, ...supplied};
     }
     final presentation = jsonMap(data['presentation'], 'presentation');
     check(presentation['mode'] == 'sequential', '当前只支持顺序呈现');
+    if (presentation.containsKey('stereo')) {
+      final stereo = jsonMap(presentation['stereo'], 'presentation.stereo');
+      keys(stereo, [
+        'layout',
+        'uiDisparity',
+        'pointerMapping',
+      ], 'presentation.stereo');
+      stereo.putIfAbsent('layout', () => 'half_sbs');
+      stereo.putIfAbsent('uiDisparity', () => 0);
+      stereo.putIfAbsent('pointerMapping', () => 'screen');
+      check(
+        ['screen', 'per_eye'].contains(stereo['pointerMapping']),
+        '鼠标坐标映射无效',
+      );
+      check(['half_sbs', 'full_sbs'].contains(stereo['layout']), 'SBS 格式无效');
+      final disparity = stereo['uiDisparity'];
+      check(
+        disparity is num &&
+            disparity.isFinite &&
+            disparity >= -64 &&
+            disparity <= 64,
+        'UI 双眼视差必须为 -64～64 逻辑像素',
+      );
+      presentation['stereo'] = stereo;
+    }
+    if (presentation.containsKey('patch')) {
+      final patch = jsonMap(presentation['patch'], 'presentation.patch');
+      keys(patch, ['area', 'distribution'], 'presentation.patch');
+      patch.putIfAbsent('distribution', () => 'center_triangular');
+      final area = patch['area'];
+      check(
+        area is num && area.isFinite && area >= 0.001 && area <= 1,
+        'Patch 面积比例必须为 0.001～1',
+      );
+      check(patch['distribution'] == 'center_triangular', 'Patch 分布无效');
+      presentation['patch'] = patch;
+    }
+    data['presentation'] = presentation;
     for (final (key, low, high) in [
       ('promptMs', 0, 60000),
       ('imageMs', 1, 600000),
@@ -297,6 +342,8 @@ class StudyDefinition {
         'id',
         'a',
         'b',
+        'aRight',
+        'bRight',
         'answer',
         'role',
         'group',
@@ -308,6 +355,16 @@ class StudyDefinition {
       );
       assetPath(item['a']);
       assetPath(item['b']);
+      for (final key in ['aRight', 'bRight']) {
+        check(
+          draft || presentation['stereo'] == null || nonEmpty(item[key]),
+          '${item['id']} 缺少右眼图片 $key',
+        );
+        if (item.containsKey(key) ||
+            (!draft && presentation['stereo'] != null)) {
+          assetPath(item[key]);
+        }
+      }
       item.putIfAbsent('role', () => 'main');
       item.putIfAbsent('metadata', () => <String, dynamic>{});
       check(
@@ -330,9 +387,7 @@ class StudyDefinition {
       items.add(item);
     }
     data['items'] = items;
-    final paths = {
-      for (final item in items) ...[item['a'] as String, item['b'] as String],
-    };
+    final paths = {for (final item in items) ...itemAssets(item)};
     check(
       paths.map((path) => path.toLowerCase()).toSet().length == paths.length,
       '图片路径不能仅以大小写区分，以便 Windows 与 Android 交换',
@@ -419,6 +474,17 @@ class StudyDefinition {
   Map<String, dynamic> get presentation =>
       jsonMap(_data['presentation'], 'presentation');
   Map<String, dynamic> get schedule => jsonMap(_data['schedule'], 'schedule');
+  Map<String, dynamic>? get stereo => presentation['stereo'] == null
+      ? null
+      : jsonMap(presentation['stereo'], 'stereo');
+  Map<String, dynamic>? get patch => presentation['patch'] == null
+      ? null
+      : jsonMap(presentation['patch'], 'patch');
+  String get schedulerVersion => patch != null
+      ? '2afc-schedule@3'
+      : sampling != null
+      ? '2afc-schedule@2'
+      : '2afc-schedule@1';
   Map<String, dynamic> get quality => jsonMap(_data['quality'], 'quality');
   Map<String, dynamic> get analysis => jsonMap(_data['analysis'], 'analysis');
   Map<String, dynamic>? get profile => analysis['profile'] == null
@@ -438,9 +504,7 @@ class StudyDefinition {
       (_data['participantFields'] as List)
           .map((i) => jsonMap(i, 'field'))
           .toList();
-  Set<String> get assets => {
-    for (final item in items) ...[item['a'] as String, item['b'] as String],
-  };
+  Set<String> get assets => {for (final item in items) ...itemAssets(item)};
   int get trialCount =>
       selectedMainCount * (schedule['repetitions'] as int) +
       items.where((i) => i['role'] != 'main').length;

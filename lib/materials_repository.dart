@@ -113,7 +113,7 @@ extension MaterialsRepository on StudyRepository {
     final paths = <String>{};
     for (final t in session.trials) {
       final c = e.caseById(t.caseId);
-      paths.addAll([c.gt, c.render]);
+      paths.addAll(c.assets);
     }
     for (final path in paths) {
       final a = assets[path]!,
@@ -151,7 +151,7 @@ extension MaterialsRepository on StudyRepository {
     final names = <String>{};
     for (final trial in trials) {
       final c = e.caseById(trial.caseId);
-      names.addAll([c.gt, c.render]);
+      names.addAll(c.assets);
     }
     for (final name in names) {
       await verifiedImageData(e, name, fingerprint: hashes[name]);

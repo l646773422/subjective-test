@@ -102,7 +102,49 @@ List<Trial> buildV2Schedule(Experiment e, int seed) {
     }
     result.add(main[i]);
   }
-  return result;
+  if (d.patch == null) return result;
+  // Separate PRNG preserves frame/view and order selection when patch is enabled.
+  final patchRandom = StableRandom(seed ^ 0x50415443);
+  final patches = <String, Map<String, dynamic>>{};
+  return [
+    for (final t in result)
+      Trial(
+        t.id,
+        t.caseId,
+        t.capturedFirst,
+        role: t.role,
+        repetition: t.repetition,
+        sample: t.sample,
+        patch: patches.putIfAbsent(t.caseId, () {
+          final c = e.caseById(t.caseId);
+          return samplePatch(
+            c.width,
+            c.height,
+            (d.patch!['area'] as num).toDouble(),
+            patchRandom,
+          );
+        }),
+      ),
+  ];
+}
+
+Map<String, dynamic> samplePatch(
+  int width,
+  int height,
+  double area,
+  StableRandom random,
+) {
+  final scale = sqrt(area);
+  final w = max(1, (width * scale).round()),
+      h = max(1, (height * scale).round());
+  // Mean of two uniforms: triangular density, highest in the center, zero at edges.
+  double centered() => (random.nextDouble() + random.nextDouble()) / 2;
+  return Map<String, dynamic>.unmodifiable({
+    'x': (centered() * (width - w)).round(),
+    'y': (centered() * (height - h)).round(),
+    'width': w,
+    'height': h,
+  });
 }
 
 void validatePhotorealism(Experiment e) {
@@ -233,7 +275,7 @@ void validateV2Session(StudySession s, Experiment e) {
   ).where((a) => a['sha256'] == null).map((a) => a['path']).toSet();
   for (final t in s.trials) {
     final c = e.caseById(t.caseId);
-    for (final name in [c.gt, c.render].where(unpinned.contains)) {
+    for (final name in c.assets.where(unpinned.contains)) {
       check(
         RegExp(r'^[a-f0-9]{64}$').hasMatch(s.materialHashes[name] ?? ''),
         '会话缺少抽中素材的指纹：$name',

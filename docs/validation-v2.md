@@ -2,6 +2,8 @@
 
 日期：2026-10-16。使用合成演示素材验证软件行为，不构成正式主观评价结论。
 
+本页为 2026-10-16 的历史验证，包含当时的 Android 和 Release 记录。2026-10-23 的素材池验证见 [Windows 真实素材流程](real-materials-workflow.md)，双眼与 Patch 验证见 [双眼与 Patch](stereo-and-patch.md)。当前只联调 Windows，不重新打包发布。
+
 ## 实现范围
 
 - schema 2 标准目录、源 ZIP 和发布 ZIP 导入；草稿持久化、配置、题目编辑和顺序预览。

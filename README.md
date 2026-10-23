@@ -31,7 +31,9 @@ Windows / Android 离线主观评价工作台，当前支持静态图片顺序�
 }
 ```
 
-`a/b` 是素材身份，与屏幕先后位置无关。有标准答案时填写 `answer: "a"` 或 `"b"` 并选择准确率指标；无标准答案时使用逐题选择比例。练习和控制题均可选，重复次数只影响正式题。图片可使用不同尺寸，等比完整显示，不自动裁切、改色或压缩。
+`a/b` 是素材身份，与屏幕先后位置无关。有标准答案时填写 `answer: "a"` 或 `"b"` 并选择准确率指标；无标准答案时使用逐题选择比例。练习和控制题均可选，重复次数只影响正式题。默认完整显示 2D 图片，允许不同尺寸；启用 3D 或 Patch 后，每题全部图片需同尺寸。
+
+草稿的“03 呈现与排程”可开启 **3D 双眼 SBS** 和 **随机 Patch**。3D 用 `a/b` 指定左眼、`aRight/bRight` 指定对应右眼，A、B 仍先后播放；图片阶段隐藏鼠标，作答 UI 和指针在双眼绘制。Patch 按原图面积百分比配置，中心偏重抽样，A/B、双眼与重复题共用同一矩形，恢复不重抽。具体配置、SBS 比例和连续鼠标操作见 [双眼与 Patch](docs/stereo-and-patch.md)。
 
 详细字段、默认值、操作与导出合同见 [数据与操作规范 v2](docs/study-data-v2.md)。完整样例在 [examples/study-v2](examples/study-v2/study.json)。来源差异在外部适配器中解决，平台不识别训练目录、固定场景或相机映射。
 
@@ -75,14 +77,16 @@ flutter test test
 python -m unittest discover -s tools -p 'test_*.py' -v
 $env:STUDY_ARTIFACT_DIR="validation/v2-windows"
 flutter drive --driver=test_driver/driver.dart --target=integration_test/flow_test.dart -d windows
+$env:STUDY_ARTIFACT_DIR="validation/stereo-windows"
+flutter drive --driver=test_driver/driver.dart --target=integration_test/stereo_patch_test.dart -d windows
 $env:STUDY_ARTIFACT_DIR="validation/v2-android"
 flutter drive --driver=test_driver/driver.dart --target=integration_test/flow_test.dart -d emulator-5580
-flutter build windows --release
-flutter build apk --release --target-platform android-arm64,android-x64
 ```
 
 集成验证覆盖真实计时与中断、旧版完整 46 题、v2 最小实验与跨设备数据交换。加速计时只由测试入口注入，生产使用发布配置。实体设备和正式素材的显示条件须按实验要求另行联调。
 
 Windows 插件链接受限时可运行 `tools/prepare_windows.ps1` 创建项目内 junction。`tools/build.ps1` 默认使用 `D:/tools/flutter`，路径可通过参数覆盖。两端构建按顺序执行，Android Release 使用内部调试签名。`tools/package.ps1` 整理 Release 产物及 SHA-256 清单到 dist。
+
+当前阶段只运行 Windows 调试版，不执行发布构建或打包。如果终端找不到 `flutter`，本机可在项目目录运行 `& 'D:\tools\flutter\bin\flutter.bat' run -d windows`。
 
 原 v1 验证见 [docs/validation.md](docs/validation.md)，v2 验证见 [docs/validation-v2.md](docs/validation-v2.md)。四序列真实素材的结构检查、转换和调试流程见 [真实素材流程演练](docs/real-materials-workflow.md)。

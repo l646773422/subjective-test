@@ -101,10 +101,28 @@ def normalize(study, root=None):
     require(isinstance(value["metadata"], dict), "metadata must be an object")
     for section, defaults in DEFAULTS.items():
         supplied = value.get(section, {})
-        object_keys(supplied, [*defaults, *(["profile"] if section == "analysis" else [])], section)
+        extras = ["profile"] if section == "analysis" else ["stereo", "patch"] if section == "presentation" else []
+        object_keys(supplied, [*defaults, *extras], section)
         value[section] = {**copy.deepcopy(defaults), **supplied}
     presentation, schedule = value["presentation"], value["schedule"]
     require(presentation["mode"] == "sequential", "only sequential image presentation is supported")
+    if "stereo" in presentation:
+        stereo = presentation["stereo"]
+        object_keys(stereo, ("layout", "uiDisparity", "pointerMapping"), "presentation.stereo")
+        stereo.setdefault("layout", "half_sbs")
+        stereo.setdefault("uiDisparity", 0)
+        stereo.setdefault("pointerMapping", "screen")
+        require(stereo["pointerMapping"] in ("screen", "per_eye"), "invalid pointer mapping")
+        require(stereo["layout"] in ("half_sbs", "full_sbs"), "invalid SBS layout")
+        require(type(stereo["uiDisparity"]) in (int, float) and -64 <= stereo["uiDisparity"] <= 64,
+                "UI disparity must be -64..64 logical pixels")
+    if "patch" in presentation:
+        patch = presentation["patch"]
+        object_keys(patch, ("area", "distribution"), "presentation.patch")
+        patch.setdefault("distribution", "center_triangular")
+        require(type(patch.get("area")) in (int, float) and 0.001 <= patch["area"] <= 1,
+                "patch area must be 0.001..1")
+        require(patch["distribution"] == "center_triangular", "unsupported patch distribution")
     for key, low, high in (("promptMs", 0, 60000), ("imageMs", 1, 600000)):
         require(type(presentation[key]) is int and low <= presentation[key] <= high,
                 f"presentation.{key} must be an integer in {low}..{high}")
@@ -162,7 +180,7 @@ def normalize(study, root=None):
     ids, files, main = set(), set(), []
     for index, item in enumerate(value["items"]):
         location = f"items[{index}]"
-        object_keys(item, {"id", "a", "b", "answer", "role", "group", "metadata"}, location)
+        object_keys(item, {"id", "a", "b", "aRight", "bRight", "answer", "role", "group", "metadata"}, location)
         require(identifier(item.get("id")), f"{location}.id is invalid")
         require(item["id"] not in ids, f"duplicate item id: {item['id']}")
         ids.add(item["id"])
@@ -175,7 +193,8 @@ def normalize(study, root=None):
         if "answer" in item:
             require(item["answer"] in ("a", "b"), f"{location}.answer must be a or b")
         require(item["role"] != "control" or "answer" in item, f"{location}: control needs an answer")
-        for alternative in ("a", "b"):
+        for alternative in ("a", "b", *(["aRight", "bRight"] if "stereo" in presentation else
+                [k for k in ("aRight", "bRight") if k in item])):
             asset_path(item.get(alternative))
             files.add(item[alternative])
         if item["role"] == "main":

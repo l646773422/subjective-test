@@ -370,10 +370,8 @@ extension V2Repository on StudyRepository {
         'assets': assets,
         'materials': 'external@1',
         'implementations': {
-          'method': '2afc@1',
-          'scheduler': d.sampling == null
-              ? '2afc-schedule@1'
-              : '2afc-schedule@2',
+          'method': d.stereo == null ? '2afc@1' : '2afc-stereo@1',
+          'scheduler': d.schedulerVersion,
           'quality': 'basic-quality@1',
           'analysis': d.profile == null
               ? 'basic-analysis@1'
@@ -609,6 +607,19 @@ extension V2Repository on StudyRepository {
           'a_sha256',
           'b_sha256',
         ],
+        if (e.definition!.patch != null) ...[
+          'patch_seed',
+          'patch_x',
+          'patch_y',
+          'patch_width',
+          'patch_height',
+        ],
+        if (e.definition!.stereo != null) ...[
+          'stereo_layout',
+          'ui_disparity',
+          'a_right_sha256',
+          'b_right_sha256',
+        ],
       ],
     ];
     for (final s in sessions) {
@@ -643,6 +654,19 @@ extension V2Repository on StudyRepository {
             s.seed,
             s.materialHashes[c.gt],
             s.materialHashes[c.render],
+          ],
+          if (e.definition!.patch != null) ...[
+            s.seed,
+            t.patch!['x'],
+            t.patch!['y'],
+            t.patch!['width'],
+            t.patch!['height'],
+          ],
+          if (e.definition!.stereo != null) ...[
+            e.definition!.stereo!['layout'],
+            e.definition!.stereo!['uiDisparity'],
+            s.materialHashes[c.aRight],
+            s.materialHashes[c.bRight],
           ],
         ]);
       }

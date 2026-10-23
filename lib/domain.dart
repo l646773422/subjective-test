@@ -81,6 +81,8 @@ class StudyCase {
   final int frame, view, iteration, width, height;
   final int bWidth, bHeight;
   final String? answer;
+  final String? aRight, bRight;
+  List<String> get assets => [gt, render, ?aRight, ?bRight];
   final Map<String, dynamic> metadata;
   const StudyCase({
     required this.id,
@@ -100,6 +102,8 @@ class StudyCase {
     int? bHeight,
     this.answer = 'a',
     this.metadata = const {},
+    this.aRight,
+    this.bRight,
   }) : bWidth = bWidth ?? width,
        bHeight = bHeight ?? height;
   factory StudyCase.fromJson(Map<String, dynamic> j) => StudyCase(
@@ -176,10 +180,8 @@ class Experiment {
       'implementations',
     );
     final expected = {
-      'method': '2afc@1',
-      'scheduler': definition.sampling == null
-          ? '2afc-schedule@1'
-          : '2afc-schedule@2',
+      'method': definition.stereo == null ? '2afc@1' : '2afc-stereo@1',
+      'scheduler': definition.schedulerVersion,
       'quality': 'basic-quality@1',
       'analysis': definition.profile == null
           ? 'basic-analysis@1'
@@ -227,6 +229,16 @@ class Experiment {
     );
     final cases = definition.items.map((item) {
       final a = byPath[item['a']]!, b = byPath[item['b']]!;
+      if (definition.stereo != null || definition.patch != null) {
+        check(
+          itemAssets(item).every(
+            (path) =>
+                byPath[path]!['width'] == a['width'] &&
+                byPath[path]!['height'] == a['height'],
+          ),
+          '${item['id']} 的 A、B 与双眼图片必须具有相同尺寸',
+        );
+      }
       final meta = jsonMap(item['metadata'], 'metadata');
       return StudyCase(
         id: item['id'] as String,
@@ -234,6 +246,8 @@ class Experiment {
         kind: item['role'] as String,
         gt: item['a'] as String,
         render: item['b'] as String,
+        aRight: item['aRight'] as String?,
+        bRight: item['bRight'] as String?,
         gtHash: a['sha256'] as String? ?? '',
         renderHash: b['sha256'] as String? ?? '',
         frame: meta['frame'] is int ? meta['frame'] as int : -1,
@@ -384,6 +398,7 @@ class Trial {
   final String? role;
   final int repetition;
   final Map<String, dynamic>? sample;
+  final Map<String, dynamic>? patch;
   const Trial(
     this.id,
     this.caseId,
@@ -391,6 +406,7 @@ class Trial {
     this.role,
     this.repetition = 1,
     this.sample,
+    this.patch,
   });
   factory Trial.fromJson(Map<String, dynamic> j) {
     if (j.containsKey('trialId')) {
@@ -410,6 +426,9 @@ class Trial {
         sample: j['sample'] == null
             ? null
             : jsonMap(immutableJson(j['sample']), 'sample'),
+        patch: j['patch'] == null
+            ? null
+            : jsonMap(immutableJson(j['patch']), 'patch'),
       );
     }
     return Trial(
@@ -428,6 +447,7 @@ class Trial {
           'repetition': repetition,
           'order': order,
           if (sample != null) 'sample': sample,
+          if (patch != null) 'patch': patch,
         }
       : {'id': id, 'caseId': caseId, 'capturedFirst': capturedFirst};
   int get correctChoice => capturedFirst ? 1 : 2;

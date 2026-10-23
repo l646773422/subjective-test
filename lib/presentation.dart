@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'domain.dart';
 import 'platform_bridge.dart';
 import 'repository.dart';
+import 'stimulus_view.dart';
 
 enum StudyStage {
   instructions,
@@ -28,6 +29,14 @@ class SessionRunner extends ChangeNotifier {
   final int? testDurationMs;
   StudyStage stage = StudyStage.instructions;
   ui.Image? imageA, imageB;
+  ui.Image? imageARight, imageBRight;
+  void _disposeImages() {
+    for (final image in [imageA, imageB, imageARight, imageBRight]) {
+      image?.dispose();
+    }
+    imageA = imageB = imageARight = imageBRight = null;
+  }
+
   String? error;
   bool saving = false, disposed = false, _presented = false, _cancelled = false;
   int generation = 0;
@@ -87,30 +96,42 @@ class SessionRunner extends ChangeNotifier {
     _cancelled = false;
     setStage(StudyStage.loading);
     final loadToken = token;
-    imageA?.dispose();
-    imageB?.dispose();
-    imageA = null;
-    imageB = null;
-    ui.Image? a, b;
+    _disposeImages();
+    final loaded = <ui.Image>[];
     try {
       final c = currentCase;
       final first = trial.capturedFirst ? c.gt : c.render;
       final second = trial.capturedFirst ? c.render : c.gt;
-      a = await _decode(first);
-      b = await _decode(second);
+      final paths = [
+        first,
+        second,
+        if (experiment.definition?.stereo != null) ...[
+          trial.capturedFirst ? c.aRight! : c.bRight!,
+          trial.capturedFirst ? c.bRight! : c.aRight!,
+        ],
+      ];
+      for (final path in paths) {
+        loaded.add(await _decode(path));
+      }
       if (disposed || _cancelled || token != loadToken) {
-        a.dispose();
-        b.dispose();
+        for (final image in loaded) {
+          image.dispose();
+        }
         return;
       }
-      imageA = a;
-      imageB = b;
+      imageA = loaded[0];
+      imageB = loaded[1];
+      if (loaded.length == 4) {
+        imageARight = loaded[2];
+        imageBRight = loaded[3];
+      }
       setStage(
         experiment.promptMs == 0 ? StudyStage.imageA : StudyStage.promptA,
       );
     } catch (e) {
-      a?.dispose();
-      b?.dispose();
+      for (final image in loaded) {
+        image.dispose();
+      }
       if (!disposed && token == loadToken) fail(e);
     }
   }
@@ -208,10 +229,7 @@ class SessionRunner extends ChangeNotifier {
       saving = false;
       if (disposed) return;
       if (done) {
-        imageA?.dispose();
-        imageB?.dispose();
-        imageA = null;
-        imageB = null;
+        _disposeImages();
         setStage(StudyStage.completed);
       } else if (!practice && !session.formalStarted) {
         setStage(StudyStage.instructions);
@@ -261,8 +279,7 @@ class SessionRunner extends ChangeNotifier {
     disposed = true;
     generation++;
     _timer?.cancel();
-    imageA?.dispose();
-    imageB?.dispose();
+    _disposeImages();
     super.dispose();
   }
 }
@@ -286,6 +303,7 @@ class TestScreen extends StatefulWidget {
 class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
   late final SessionRunner runner;
   bool _platformReady = false;
+  bool _leaving = false;
   bool get displayReady =>
       _platformReady &&
       (!Platform.isAndroid ||
@@ -335,29 +353,14 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
   }
 
   Future<void> leave() async {
+    if (_leaving) return;
     if (!runner.session.complete) await runner.interrupt('leave');
     if (!mounted) return;
-    final exit =
-        runner.session.complete ||
-        await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('保存并退出本次会话？'),
-                content: const Text('已答内容已保存在本机。恢复时，未完成的当前题会重新完整展示。'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('继续测试'),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('保存退出'),
-                  ),
-                ],
-              ),
-            ) ==
-            true;
-    if (exit && mounted) Navigator.pop(context);
+    if (runner.session.complete) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() => _leaving = true);
   }
 
   Widget panel(
@@ -368,6 +371,7 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
     Key? buttonKey,
   }) => Center(
     child: SingleChildScrollView(
+      primary: true,
       padding: const EdgeInsets.all(32),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 640),
@@ -407,7 +411,16 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
               ),
             ),
             const SizedBox(height: 8),
-            TextButton(onPressed: leave, child: const Text('保存并返回')),
+            TextButton(
+              key: _leaving ? const Key('continue-test') : null,
+              onPressed: _leaving
+                  ? () {
+                      setState(() => _leaving = false);
+                      unawaited(runner.begin());
+                    }
+                  : leave,
+              child: Text(_leaving ? '继续测试' : '保存并返回'),
+            ),
           ],
         ),
       ),
@@ -427,6 +440,7 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
         autofocus: true,
         onKeyEvent: (event) {
           if (event is! KeyDownEvent) return;
+          if (_leaving) return;
           if (event.logicalKey == LogicalKeyboardKey.digit1 ||
               event.logicalKey == LogicalKeyboardKey.numpad1) {
             unawaited(runner.answer(1));
@@ -439,148 +453,172 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
         },
         child: Scaffold(
           backgroundColor: const Color(0xff808080),
-          body: LayoutBuilder(
-            builder: (context, bounds) {
-              final ratio = MediaQuery.devicePixelRatioOf(context);
-              final shown = stage == StudyStage.imageB
-                  ? runner.imageB
-                  : runner.imageA;
-              final size = shown == null
-                  ? Size.zero
-                  : applyBoxFit(
-                      BoxFit.contain,
-                      Size(shown.width.toDouble(), shown.height.toDouble()),
-                      bounds.biggest,
-                    ).destination;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                runner.presented(token, {
-                  'logicalWidth': bounds.maxWidth,
-                  'logicalHeight': bounds.maxHeight,
-                  'dpr': ratio,
-                  'imageWidthPx': size.width * ratio,
-                  'imageHeightPx': size.height * ratio,
-                });
-              });
-              return switch (stage) {
-                StudyStage.instructions => panel(
-                  runner.practice
-                      ? '观看说明与练习'
-                      : runner.session.practiceStarted
-                      ? '练习结束，开始正式测试'
-                      : '开始评价',
-                  runner.practice
-                      ? '每次会先后显示两幅图片。\n${runner.experiment.question}\n即使不确定，也必须选择第一幅或第二幅。\n图片显示后不能回看，答题不设时限。\n练习结果不计入正式统计。'
-                      : '${runner.experiment.question}\n每题先后显示两幅图片，随后请选择第一幅或第二幅。\n图片不能回看，答题不限时；作答后自动进入下一题。\n正式阶段不显示答案或正确率。\n${runner.experiment.definition?.instructions ?? '请保持观看距离，不切换应用。'}',
-                  runner.practice ? '开始练习' : '开始正式测试',
-                  () => unawaited(runner.begin()),
-                  buttonKey: const Key('begin-phase'),
-                ),
-                StudyStage.loading => const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                ),
-                StudyStage.promptA || StudyStage.promptB => Center(
-                  child: Text(
-                    stage == StudyStage.promptA ? 'A' : 'B',
-                    style: const TextStyle(
-                      fontSize: 64,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
+          body: StereoSurface(
+            stereo: runner.experiment.definition?.stereo,
+            stimulus:
+                !_leaving &&
+                [StudyStage.imageA, StudyStage.imageB].contains(stage),
+            builder: (context, eye) => LayoutBuilder(
+              builder: (context, bounds) {
+                final ratio = MediaQuery.devicePixelRatioOf(context);
+                final shown = stage == StudyStage.imageB
+                    ? (eye == 1 ? runner.imageBRight : runner.imageB)
+                    : (eye == 1 ? runner.imageARight : runner.imageA);
+                final patch = runner.session.complete
+                    ? null
+                    : runner.trial.patch;
+                final size = shown == null
+                    ? Size.zero
+                    : applyBoxFit(
+                        BoxFit.contain,
+                        StimulusView.sourceRect(shown, patch).size,
+                        bounds.biggest,
+                      ).destination;
+                if (eye == 0 && !_leaving) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    runner.presented(token, {
+                      'logicalWidth': bounds.maxWidth,
+                      'logicalHeight': bounds.maxHeight,
+                      'dpr': ratio,
+                      'imageWidthPx':
+                          size.width *
+                          ratio *
+                          (runner.experiment.definition?.stereo?['layout'] ==
+                                  'half_sbs'
+                              ? 0.5
+                              : 1),
+                      'imageHeightPx': size.height * ratio,
+                      if (runner.experiment.definition?.stereo != null)
+                        'stereo': runner.experiment.definition!.stereo,
+                      'patch': ?patch,
+                    });
+                  });
+                }
+                if (_leaving) {
+                  return panel(
+                    '保存并退出本次会话？',
+                    '已答内容已保存在本机。继续时，当前题会重新完整展示。',
+                    '保存退出',
+                    () => Navigator.pop(context),
+                    buttonKey: const Key('confirm-leave'),
+                  );
+                }
+                return switch (stage) {
+                  StudyStage.instructions => panel(
+                    runner.practice
+                        ? '观看说明与练习'
+                        : runner.session.practiceStarted
+                        ? '练习结束，开始正式测试'
+                        : '开始评价',
+                    runner.practice
+                        ? '每次会先后显示两幅图片。\n${runner.experiment.question}\n即使不确定，也必须选择第一幅或第二幅。\n图片显示后不能回看，答题不设时限。\n练习结果不计入正式统计。'
+                        : '${runner.experiment.question}\n每题先后显示两幅图片，随后请选择第一幅或第二幅。\n图片不能回看，答题不限时；作答后自动进入下一题。\n正式阶段不显示答案或正确率。\n${runner.experiment.definition?.instructions ?? '请保持观看距离，不切换应用。'}',
+                    runner.practice ? '开始练习' : '开始正式测试',
+                    () => unawaited(runner.begin()),
+                    buttonKey: const Key('begin-phase'),
+                  ),
+                  StudyStage.loading => const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                  StudyStage.promptA || StudyStage.promptB => Center(
+                    child: Text(
+                      stage == StudyStage.promptA ? 'A' : 'B',
+                      style: const TextStyle(
+                        fontSize: 64,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-                StudyStage.imageA || StudyStage.imageB => SizedBox.expand(
-                  child: RawImage(
-                    key: const Key('stimulus-image'),
-                    image: stage == StudyStage.imageA
-                        ? runner.imageA
-                        : runner.imageB,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.medium,
+                  StudyStage.imageA || StudyStage.imageB => SizedBox.expand(
+                    child: StimulusView(image: shown!, patch: patch),
                   ),
-                ),
-                StudyStage.answer => Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          runner.practice ? '练习' : '请选择',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 15,
+                  StudyStage.answer => Center(
+                    child: SingleChildScrollView(
+                      primary: true,
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            runner.practice ? '练习' : '请选择',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 15,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          runner.experiment.question,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w600,
+                          const SizedBox(height: 12),
+                          Text(
+                            runner.experiment.question,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          '即使不确定，也请选择一幅。答题不限时。',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                        const SizedBox(height: 30),
-                        Wrap(
-                          spacing: 24,
-                          runSpacing: 16,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            for (final choice in [1, 2])
-                              SizedBox(
-                                width: 250,
-                                height: 76,
-                                child: FilledButton(
-                                  key: Key('answer-$choice'),
-                                  onPressed: runner.saving
-                                      ? null
-                                      : () => unawaited(runner.answer(choice)),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: const Color(0xff173e3a),
-                                  ),
-                                  child: Text(
-                                    choice == 1
-                                        ? '第一幅  A  /  1'
-                                        : '第二幅  B  /  2',
-                                    style: const TextStyle(fontSize: 21),
+                          const SizedBox(height: 10),
+                          const Text(
+                            '即使不确定，也请选择一幅。答题不限时。',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                          const SizedBox(height: 30),
+                          Wrap(
+                            spacing: 24,
+                            runSpacing: 16,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              for (final choice in [1, 2])
+                                SizedBox(
+                                  width: 250,
+                                  height: 76,
+                                  child: FilledButton(
+                                    key: Key('answer-$choice'),
+                                    onPressed: runner.saving
+                                        ? null
+                                        : () =>
+                                              unawaited(runner.answer(choice)),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      foregroundColor: const Color(0xff173e3a),
+                                    ),
+                                    child: Text(
+                                      choice == 1
+                                          ? '第一幅  A  /  1'
+                                          : '第二幅  B  /  2',
+                                      style: const TextStyle(fontSize: 21),
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                StudyStage.interrupted => panel(
-                  '测试已暂停',
-                  '本题展示被中断，未计为有效作答。\n继续后将从当前题的第一幅重新完整展示。\n中断记录会保留在结果中。',
-                  '重新展示当前题',
-                  () => unawaited(runner.begin()),
-                  buttonKey: const Key('resume-trial'),
-                ),
-                StudyStage.error => panel(
-                  '暂时无法继续',
-                  runner.error ?? '读取或保存失败，请检查素材和存储空间。',
-                  '重试当前题',
-                  () => unawaited(runner.begin()),
-                ),
-                StudyStage.completed => panel(
-                  '测试已完成',
-                  '感谢参与。\n本次答案已保存在本机，请将设备交回组织者。',
-                  '返回管理页面',
-                  () => Navigator.pop(context),
-                  buttonKey: const Key('finish-session'),
-                ),
-              };
-            },
+                  StudyStage.interrupted => panel(
+                    '测试已暂停',
+                    '本题展示被中断，未计为有效作答。\n继续后将从当前题的第一幅重新完整展示。\n中断记录会保留在结果中。',
+                    '重新展示当前题',
+                    () => unawaited(runner.begin()),
+                    buttonKey: const Key('resume-trial'),
+                  ),
+                  StudyStage.error => panel(
+                    '暂时无法继续',
+                    runner.error ?? '读取或保存失败，请检查素材和存储空间。',
+                    '重试当前题',
+                    () => unawaited(runner.begin()),
+                  ),
+                  StudyStage.completed => panel(
+                    '测试已完成',
+                    '感谢参与。\n本次答案已保存在本机，请将设备交回组织者。',
+                    '返回管理页面',
+                    () => Navigator.pop(context),
+                    buttonKey: const Key('finish-session'),
+                  ),
+                };
+              },
+            ),
           ),
         ),
       ),
