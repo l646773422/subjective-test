@@ -128,6 +128,53 @@ class WorkbenchState extends State<Workbench> {
     final outcome = await repo!.importStudyDirectory(Directory(path));
     await reload(draft: outcome.draft, select: outcome.experiment);
   });
+  Future<void> loadRenderMaterials() => perform(() async {
+    check(Platform.isWindows, '本轮先在 Windows 验证素材目录流程，Android 端将在流程敲定后接入。');
+    StudyDraft draft;
+    if (Platform.isAndroid) {
+      final tree = await PlatformBridge.pickMaterialDirectory();
+      if (tree == null) return;
+      draft = await repo!.createRenderPool(tree);
+    } else {
+      final path = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: '选择包含四个 *_renders 序列的目录',
+      );
+      if (path == null) return;
+      draft = await repo!.loadRenderDirectory(Directory(path));
+    }
+    final existing = experiments
+        .where(
+          (e) =>
+              e.studyId == draft.id &&
+              e.isV2 &&
+              digestJson(e.definition!.toJson()) ==
+                  digestJson(draft.definition.toJson()),
+        )
+        .firstOrNull;
+    final experiment = existing ?? await repo!.publishDraft(draft);
+    if (existing != null) {
+      await repo!.bindMaterialSource(
+        repo!.revisionDir(existing.id),
+        repo!.bindingAt(repo!.draftDir(draft.id))!,
+      );
+    }
+    await reload(select: experiment);
+    message('完整素材目录已加载，每位参与者独立随机抽帧和视点。当前为流程演练。');
+  });
+  Future<void> reloadMaterials() => perform(() async {
+    if (Platform.isAndroid) {
+      final tree = await PlatformBridge.pickMaterialDirectory();
+      if (tree != null) await repo!.loadMaterialTree(active!, tree);
+    } else {
+      final path = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: '加载此实验对应的测试素材目录',
+      );
+      if (path != null) {
+        await repo!.loadMaterialDirectory(active!, Directory(path));
+      }
+    }
+    message('测试素材目录已加载');
+  });
   Future<void> editDraft() async {
     if (selectedDraft == null || busy) return;
     await Navigator.push(
@@ -142,6 +189,11 @@ class WorkbenchState extends State<Workbench> {
   Future<void> launch(StudySession session) async {
     await perform(() async {
       await repo!.verify(active!);
+      await repo!.verifySelection(
+        active!,
+        session.trials,
+        hashes: session.materialHashes,
+      );
       if (!mounted) return;
       await Navigator.push(
         context,
@@ -162,6 +214,11 @@ class WorkbenchState extends State<Workbench> {
   Future<void> newSession() async {
     if (active == null || busy) return;
     final e = active!;
+    if (e.release?['materials'] == 'external@1' &&
+        repo!.bindingAt(repo!.revisionDir(e.id)) == null) {
+      message('请先点击“加载 / 更换测试素材目录”，再登记参与者');
+      return;
+    }
     final data = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => e.isV2
@@ -226,6 +283,7 @@ class WorkbenchState extends State<Workbench> {
         },
         trials: buildSchedule(e, seed),
       );
+      await repo!.pinSelection(e, created!);
       created!.validate(e);
       await repo!.save(created!);
       await reload();
@@ -331,6 +389,14 @@ class WorkbenchState extends State<Workbench> {
                 runSpacing: 8,
                 children: [
                   TextButton.icon(
+                    key: const Key('load-render-materials'),
+                    onPressed: busy || !Platform.isWindows
+                        ? null
+                        : loadRenderMaterials,
+                    icon: const Icon(Icons.folder_open),
+                    label: const Text('加载真实感素材目录'),
+                  ),
+                  TextButton.icon(
                     key: const Key('load-demo'),
                     onPressed: busy
                         ? null
@@ -434,7 +500,11 @@ class WorkbenchState extends State<Workbench> {
             runSpacing: 8,
             children: [
               badge(profile ? '真实感评测模板' : '通用 2AFC'),
-              badge('${d.items.length} 道素材题'),
+              badge(
+                d.sampling == null
+                    ? '${d.items.length} 道素材题'
+                    : '素材池 ${d.items.length} 对 · 每人 ${d.selectedMainCount} 对',
+              ),
               badge('${d.trialCount} 次作答'),
               badge('尚未发布'),
             ],
@@ -518,9 +588,12 @@ class WorkbenchState extends State<Workbench> {
             children: [
               badge(e.isV2 ? '标准 v2' : '旧版兼容'),
               badge(
-                '${e.cases.where((c) => c.kind == 'main').length} 道正式题 / $count 次作答',
+                e.definition?.sampling == null
+                    ? '${e.cases.where((c) => c.kind == 'main').length} 道正式题 / $count 次作答'
+                    : '素材池 ${e.cases.where((c) => c.kind == 'main').length} 对 · 每人随机 ${e.definition!.selectedMainCount} 对 / $count 次作答',
               ),
               badge(e.isDemo ? '演示数据' : '正式数据'),
+              if (e.definition?.sampling != null) badge('每人重新抽帧与视点'),
             ],
           ),
           const SizedBox(height: 12),
@@ -547,6 +620,10 @@ class WorkbenchState extends State<Workbench> {
                   );
                 }),
               ),
+              if (e.isV2 && Platform.isWindows)
+                button('加载 / 更换测试素材目录', Icons.folder_open, reloadMaterials),
+              if (e.release?['materials'] == 'external@1')
+                const Text('实验包仅保存规则和清单，原图从独立素材目录读取。'),
               if (selectedDraft == null || !e.isV2)
                 button(
                   e.isV2 ? '基于此版本编辑' : '复制为 v2 真实感草稿',
@@ -574,7 +651,9 @@ class WorkbenchState extends State<Workbench> {
       children: [
         card(
           '采集会话',
-          '每位参与者使用独立排程，答案逐题保存，中断后可以恢复。',
+          active!.definition?.sampling == null
+              ? '每位参与者使用独立排程，答案逐题保存，中断后可以恢复。'
+              : '每位参与者重新随机抽帧和视点。答案与抽样逐题保存，恢复时沿用本次题目。',
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -739,7 +818,9 @@ class WorkbenchState extends State<Workbench> {
                   ),
                 if (e.isV2 && e.definition!.profile != null)
                   Text(
-                    '真实感模板 · 每题至少 ${e.definition!.profile!['minObserversPerItem']} 位有效参与者；专家比例与覆盖按发布配置检查。',
+                    e.definition!.profile!['version'] == 2
+                        ? '真实感模板 · 每个序列至少 ${e.definition!.profile!['minObserversPerSequence']} 位有效参与者；每人独立抽样。'
+                        : '真实感模板 · 每题至少 ${e.definition!.profile!['minObserversPerItem']} 位有效参与者；专家比例与覆盖按发布配置检查。',
                   ),
                 if (e.isV2 && e.definition!.profile == null)
                   const Text('基础指标为描述性统计，不自动给出通过或真实感结论。'),

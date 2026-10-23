@@ -14,6 +14,13 @@ List<Trial> buildV2Schedule(Experiment e, int seed) {
     aFirst,
     role: item.kind,
     repetition: repetition,
+    sample: d.sampling == null
+        ? null
+        : Map<String, dynamic>.unmodifiable({
+            'group': item.sequence,
+            'frame': item.frame,
+            'view': item.view,
+          }),
   );
   final practice = ordered(e.cases.where((c) => c.kind == 'practice'));
   final practiceTrials = [
@@ -27,7 +34,17 @@ List<Trial> buildV2Schedule(Experiment e, int seed) {
       ),
   ];
   final blocks = <String, List<StudyCase>>{};
-  for (final item in e.cases.where((c) => c.kind == 'main')) {
+  var candidates = e.cases.where((c) => c.kind == 'main').toList();
+  if (d.sampling != null) {
+    final selected = <StudyCase>[];
+    for (final entry in (d.sampling!['perGroup'] as Map).entries) {
+      final pool = candidates.where((c) => c.sequence == entry.key).toList();
+      pool.permute(random);
+      selected.addAll(pool.take(entry.value as int));
+    }
+    candidates = selected;
+  }
+  for (final item in candidates) {
     blocks
         .putIfAbsent(cfg['blockByGroup'] == true ? item.sequence : '', () => [])
         .add(item);
@@ -118,19 +135,36 @@ void validatePhotorealism(Experiment e) {
     '真实感模板的呈现时间不符合方案',
   );
   final views = jsonMap(p['sequenceViews'], 'sequenceViews');
+  final perPerson = p['version'] == 2;
   check(
-    main.length == views.values.fold<int>(0, (n, v) => n + (v as List).length),
+    perPerson
+        ? d.sampling != null &&
+              (d.sampling!['perGroup'] as Map).keys.toSet().containsAll(
+                views.keys,
+              ) &&
+              views.keys.toSet().containsAll(
+                (d.sampling!['perGroup'] as Map).keys,
+              ) &&
+              main.every((c) => views.containsKey(c.sequence))
+        : d.sampling == null &&
+              main.length ==
+                  views.values.fold<int>(0, (n, v) => n + (v as List).length),
     '真实感模板的正式题数量不符',
   );
   for (final entry in views.entries) {
     final group = main.where((c) => c.sequence == entry.key).toList();
     final expected = (entry.value as List).cast<int>();
     check(
-      group.length == expected.length &&
-          group.every((c) => c.frame >= 0) &&
-          group.map((c) => c.view).toSet().containsAll(expected) &&
-          group.map((c) => c.view).toSet().length == expected.length &&
-          group.map((c) => c.frame).toSet().length == 1,
+      perPerson
+          ? group.isNotEmpty &&
+                group.every((c) => c.frame >= 0 && expected.contains(c.view)) &&
+                group.map((c) => '${c.frame}:${c.view}').toSet().length ==
+                    group.length
+          : group.length == expected.length &&
+                group.every((c) => c.frame >= 0) &&
+                group.map((c) => c.view).toSet().containsAll(expected) &&
+                group.map((c) => c.view).toSet().length == expected.length &&
+                group.map((c) => c.frame).toSet().length == 1,
       '真实感模板的 ${entry.key} 帧或视点覆盖不完整，请在 metadata 填写 frame/view',
     );
     final resolution = (p['resolutions'] as Map)[entry.key] as List;
@@ -194,6 +228,18 @@ void validateV2Session(StudySession s, Experiment e) {
         digestJson(buildSchedule(e, s.seed).map((t) => t.toJson()).toList()),
     '实际排程与执行版本不符',
   );
+  final unpinned = records(
+    e.release!['assets'],
+  ).where((a) => a['sha256'] == null).map((a) => a['path']).toSet();
+  for (final t in s.trials) {
+    final c = e.caseById(t.caseId);
+    for (final name in [c.gt, c.render].where(unpinned.contains)) {
+      check(
+        RegExp(r'^[a-f0-9]{64}$').hasMatch(s.materialHashes[name] ?? ''),
+        '会话缺少抽中素材的指纹：$name',
+      );
+    }
+  }
   check(
     s.answers.length <= s.trials.length &&
         (s.completedAt == null ||
@@ -302,20 +348,39 @@ Map<String, dynamic> buildV2Report(Experiment e, List<StudySession> input) {
             'judgments': n,
             'correct': k,
             'rate': n == 0 ? null : k / n,
+            if (e.definition!.sampling != null)
+              'viewers': people
+                  .where(
+                    (s) => s.trials.any(
+                      (t) => e.caseById(t.caseId).sequence == group,
+                    ),
+                  )
+                  .length,
           });
         }
       }
       bool ready = !duplicate && people.isNotEmpty;
       if (profile != null) {
-        final minimum = profile['minObserversPerItem'] as int;
+        final perSequence = profile['version'] == 2;
+        final minimum =
+            profile[perSequence
+                    ? 'minObserversPerSequence'
+                    : 'minObserversPerItem']
+                as int;
         ready =
             ready &&
             people.length >= minimum &&
             experts * (profile['expertDenominator'] as int) <=
                 people.length * (profile['expertNumerator'] as int) &&
-            rows.every((r) => (r['viewers'] as int) >= minimum) &&
+            (perSequence
+                ? sequences.every((r) => (r['viewers'] as int) >= minimum)
+                : rows.every((r) => (r['viewers'] as int) >= minimum)) &&
             (profile['equalCoverage'] != true ||
-                rows.map((r) => r['viewers']).toSet().length == 1);
+                (perSequence ? sequences : rows)
+                        .map((r) => r['viewers'])
+                        .toSet()
+                        .length ==
+                    1);
         for (final row in [...rows, ...sequences]) {
           final rate = row['rate'] as double?;
           row['classification'] = e.isDemo

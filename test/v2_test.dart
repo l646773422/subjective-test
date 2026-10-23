@@ -175,7 +175,7 @@ void main() {
   );
 
   test(
-    'versions freeze defaults and assets while the draft keeps its stable identity',
+    'versions freeze rules and image hashes while external materials stay separate',
     () async {
       final d = await source();
       final first = await repo.publishDraft(d);
@@ -185,11 +185,21 @@ void main() {
       expect(first.studyId, second.studyId);
       expect(first.question, '你更喜欢哪一幅？');
       expect(second.question, '第二个问题');
-      await File(
-        '${repo.draftDir(d.id).path}/${d.definition.items.first['a']}',
-      ).writeAsBytes([0]);
+      expect(
+        await File(
+          '${repo.revisionDir(first.id).path}/${d.definition.items.first['a']}',
+        ).exists(),
+        false,
+      );
+      final relative = d.definition.items.first['a'] as String;
+      expect(await repo.verifiedImageData(first, relative), isNotEmpty);
+      await repo.imageFile(first, relative).writeAsBytes([0]);
       await repo.verify(first);
       await repo.verify(second);
+      await expectLater(
+        repo.verifiedImageData(first, relative),
+        throwsFormatException,
+      );
       expect((await repo.experiments()).length, 2);
     },
   );
@@ -223,6 +233,8 @@ void main() {
         ),
         throwsFormatException,
       );
+      await expectLater(other.verify(imported), throwsFormatException);
+      await other.loadMaterialDirectory(imported, repo.materialRoot(e));
       await other.verify(imported);
     },
   );

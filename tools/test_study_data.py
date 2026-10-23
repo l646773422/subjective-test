@@ -44,6 +44,16 @@ class StudyDataTests(unittest.TestCase):
         source["items"][0]["answer"] = "b"
         normalize(source)
 
+    def test_per_participant_pool_counts_only_the_sampled_items(self):
+        source = minimal()
+        source['items'] = [dict(source['items'][0], id=f'item-{i}', group='sequence') for i in range(3)]
+        source['sampling'] = {'mode': 'per_participant', 'perGroup': {'sequence': 2}}
+        source['schedule'] = {'repetitions': 2, 'pairOrder': 'balanced', 'blockByGroup': True, 'avoidAdjacentRepeats': True}
+        self.assertEqual(summary(normalize(source))['scheduledResponses'], 4)
+        source['sampling']['perGroup']['sequence'] = 4
+        with self.assertRaisesRegex(StudyError, 'counts'):
+            normalize(source)
+
     def test_conflicting_schedule_is_rejected(self):
         source = minimal()
         source["schedule"] = {"pairOrder": "balanced"}

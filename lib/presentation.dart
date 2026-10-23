@@ -116,7 +116,11 @@ class SessionRunner extends ChangeNotifier {
   }
 
   Future<ui.Image> _decode(String relative) async {
-    final data = await repository.imageFile(experiment, relative).readAsBytes();
+    final data = await repository.verifiedImageData(
+      experiment,
+      relative,
+      fingerprint: session.materialHashes[relative],
+    );
     final codec = await ui.instantiateImageCodec(data);
     try {
       if (experiment.isV2 && codec.frameCount != 1) {

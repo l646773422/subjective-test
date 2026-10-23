@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -158,7 +159,7 @@ class _DraftEditorState extends State<DraftEditor> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('可编辑题目元数据和高级配置。素材路径相对于本草稿目录，实验身份保持不变。'),
+                const Text('可编辑题目元数据和高级配置。素材路径相对于已加载的素材目录，实验身份保持不变。'),
                 const SizedBox(height: 12),
                 SizedBox(
                   height: MediaQuery.sizeOf(ctx).height * .45,
@@ -229,6 +230,11 @@ class _DraftEditorState extends State<DraftEditor> {
       'participantFields',
     ]) {
       source[key] = normalized[key];
+    }
+    if (normalized.containsKey('sampling')) {
+      source['sampling'] = normalized['sampling'];
+    } else {
+      source.remove('sampling');
     }
     question.text = source['question'] as String;
     instructions.text = source['instructions'] as String;
@@ -404,7 +410,11 @@ class _DraftEditorState extends State<DraftEditor> {
                           label: const Text('添加图片对'),
                         ),
                         const SizedBox(height: 16),
-                        for (final (index, item) in items.indexed)
+                        if (items.length > 24)
+                          Text(
+                            '共 ${items.length} 对候选素材，下方仅预览前 24 对；会话从完整素材池抽样。',
+                          ),
+                        for (final (index, item) in items.take(24).indexed)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 14),
                             child: Container(
@@ -433,7 +443,7 @@ class _DraftEditorState extends State<DraftEditor> {
                                             children: [
                                               Image.file(
                                                 File(
-                                                  '${repo.draftDir(widget.draft.id).path}/${item[alternative]}',
+                                                  '${repo.bindingAt(repo.draftDir(widget.draft.id))?['root'] ?? repo.draftDir(widget.draft.id).path}/${item[alternative]}',
                                                 ),
                                                 height: 90,
                                                 cacheWidth: 280,
@@ -471,6 +481,13 @@ class _DraftEditorState extends State<DraftEditor> {
                                                 context,
                                                 MaterialPageRoute<void>(
                                                   builder: (_) => DraftPreview(
+                                                    read: (relative) =>
+                                                        repo.materialBytes(
+                                                          repo.draftDir(
+                                                            widget.draft.id,
+                                                          ),
+                                                          relative,
+                                                        ),
                                                     directory: repo.draftDir(
                                                       widget.draft.id,
                                                     ),
@@ -775,6 +792,7 @@ class _ItemDialogState extends State<ItemDialog> {
 }
 
 class DraftPreview extends StatefulWidget {
+  final Future<Uint8List> Function(String)? read;
   final Directory directory;
   final Map<String, dynamic> item;
   final String question;
@@ -786,6 +804,7 @@ class DraftPreview extends StatefulWidget {
     required this.question,
     required this.promptMs,
     required this.imageMs,
+    this.read,
   });
   @override
   State<DraftPreview> createState() => _DraftPreviewState();
@@ -806,9 +825,11 @@ class _DraftPreviewState extends State<DraftPreview> {
     try {
       for (final key in ['a', 'b']) {
         final codec = await ui.instantiateImageCodec(
-          await File(
-            '${widget.directory.path}/${widget.item[key]}',
-          ).readAsBytes(),
+          widget.read != null
+              ? await widget.read!(widget.item[key] as String)
+              : await File(
+                  '${widget.directory.path}/${widget.item[key]}',
+                ).readAsBytes(),
         );
         final image = (await codec.getNextFrame()).image;
         codec.dispose();

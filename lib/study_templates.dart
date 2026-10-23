@@ -1,6 +1,10 @@
 import 'domain.dart';
 
-Map<String, dynamic> newStudySource(String id, {bool photorealism = false}) {
+Map<String, dynamic> newStudySource(
+  String id, {
+  bool photorealism = false,
+  bool legacyPhotorealism = false,
+}) {
   final source = <String, dynamic>{
     'schema': 2,
     'studyId': id,
@@ -10,6 +14,14 @@ Map<String, dynamic> newStudySource(String id, {bool photorealism = false}) {
     'items': <dynamic>[],
   };
   if (photorealism) {
+    if (!legacyPhotorealism) {
+      source['sampling'] = {
+        'mode': 'per_participant',
+        'perGroup': {
+          for (final e in protocolViews.entries) e.key: e.value.length,
+        },
+      };
+    }
     source.addAll({
       'instructions': '请依据记忆与整体印象作答，不必刻意寻找细小差别。测试期间保持观看距离，不切换应用。',
       'schedule': {
@@ -62,8 +74,11 @@ Map<String, dynamic> newStudySource(String id, {bool photorealism = false}) {
         'metric': 'accuracy',
         'profile': {
           'type': 'photorealism',
-          'version': 1,
-          'minObserversPerItem': 15,
+          'version': legacyPhotorealism ? 1 : 2,
+          (legacyPhotorealism
+                  ? 'minObserversPerItem'
+                  : 'minObserversPerSequence'):
+              15,
           'expertNumerator': 1,
           'expertDenominator': 3,
           'maxSequenceAccuracy': .75,

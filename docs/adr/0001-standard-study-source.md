@@ -1,6 +1,6 @@
 # ADR 0001 统一实验源数据与外部适配
 
-状态：已实施。Flutter 接入 v2，保留 schema 1 读取与复算。
+状态：历史决策，已由 [ADR 0002](0002-material-directory-and-participant-sampling.md) 补充并调整。Flutter 保留 v2 通用描述与 schema 1 读取；当前真实感模板可以直接适配原始 renders 目录，素材独立于软件包。
 
 日期：2026-10-16。
 

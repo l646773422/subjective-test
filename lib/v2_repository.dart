@@ -156,14 +156,18 @@ extension V2Repository on StudyRepository {
       p.join(root.path, 'draft-import-${uuid()}'),
     ).create();
     try {
-      int size = 0;
+      final binding = await readMaterialBinding(source);
+      final materials = binding == null
+          ? source
+          : Directory(binding['root'] as String);
       for (final relative in d.assets) {
-        final original = await sourceFile(source, relative);
-        size += await original.length();
-        check(size <= 1024 * 1024 * 1024, '素材总量超过 1 GB');
-        final output = File(p.joinAll([temp.path, ...relative.split('/')]));
-        await output.parent.create(recursive: true);
-        await original.copy(output.path);
+        await sourceFile(materials, relative);
+      }
+      await bindMaterialRoot(temp, materials);
+      if (binding?['assets'] != null) {
+        await File(
+          p.join(temp.path, 'catalog.json'),
+        ).writeAsString(jsonEncode(binding!['assets']));
       }
       await File(p.join(temp.path, 'study.json')).writeAsString(
         const JsonEncoder.withIndent('  ').convert(d.toJson()),
@@ -182,10 +186,11 @@ extension V2Repository on StudyRepository {
     }
     final e = await readRelease(source);
     final archive = Archive();
+    final external = e.release!['materials'] == 'external@1';
     for (final name in [
       'study.json',
       'release.json',
-      ...e.definition!.assets,
+      if (!external) ...e.definition!.assets,
     ]) {
       final file = name == 'study.json' || name == 'release.json'
           ? File(p.join(source.path, name))
@@ -193,7 +198,16 @@ extension V2Repository on StudyRepository {
       final bytes = await file.readAsBytes();
       archive.addFile(ArchiveFile(name, bytes.length, bytes));
     }
-    return importStudyZip(Uint8List.fromList(ZipEncoder().encode(archive)));
+    final result = await importStudyZip(
+      Uint8List.fromList(ZipEncoder().encode(archive)),
+    );
+    if (external) {
+      final binding = await readMaterialBinding(source);
+      if (binding != null) {
+        await bindMaterialSource(revisionDir(result.experiment!.id), binding);
+      }
+    }
+    return result;
   }
 
   Future<StudyDraft> forkDefinition(
@@ -205,7 +219,8 @@ extension V2Repository on StudyRepository {
     final id = keepStudyId && e.isV2 ? e.studyId : uuid();
     check(!await draftDir(id).exists(), '该实验已有草稿，请编辑现有草稿');
     final source =
-        e.definition?.toJson() ?? newStudySource(id, photorealism: true);
+        e.definition?.toJson() ??
+        newStudySource(id, photorealism: true, legacyPhotorealism: true);
     source['studyId'] = id;
     source['name'] = e.name;
     source['isDemo'] = e.isDemo;
@@ -247,16 +262,26 @@ extension V2Repository on StudyRepository {
         'quality',
         'analysis',
         'participantFields',
+        'sampling',
       ]) {
-        source[key] = template[key];
+        if (template.containsKey(key)) source[key] = template[key];
       }
     }
     final d = StudyDefinition.fromJson(source, draft: true);
     final dir = await draftDir(id).create(recursive: true);
-    for (final relative in d.assets) {
-      final output = File(p.joinAll([dir.path, ...relative.split('/')]));
-      await output.parent.create(recursive: true);
-      await imageFile(e, relative).copy(output.path);
+    final binding = e.isV2 ? bindingAt(revisionDir(e.id)) : null;
+    if (binding != null) {
+      await bindMaterialSource(dir, binding);
+    } else {
+      await bindMaterialRoot(
+        dir,
+        e.isV2 ? materialRoot(e) : experimentDir(e.id),
+      );
+    }
+    if (e.isV2) {
+      await File(
+        p.join(dir.path, 'catalog.json'),
+      ).writeAsString(jsonEncode(e.release!['assets']));
     }
     return saveDraft(d.toJson());
   }
@@ -267,10 +292,15 @@ extension V2Repository on StudyRepository {
     source['studyId'] = id;
     source['name'] = '${source['name']}（副本）';
     final dir = await draftDir(id).create(recursive: true);
-    for (final relative in draft.definition.assets) {
-      final output = File(p.joinAll([dir.path, ...relative.split('/')]));
-      await output.parent.create(recursive: true);
-      await (await sourceFile(draftDir(draft.id), relative)).copy(output.path);
+    final binding = bindingAt(draftDir(draft.id));
+    if (binding != null) {
+      await bindMaterialSource(dir, binding);
+    } else {
+      await bindMaterialRoot(dir, await draftMaterialRoot(draft));
+    }
+    final catalog = File(p.join(draftDir(draft.id).path, 'catalog.json'));
+    if (await catalog.exists()) {
+      await catalog.copy(p.join(dir.path, 'catalog.json'));
     }
     return saveDraft(source);
   }
@@ -280,6 +310,10 @@ extension V2Repository on StudyRepository {
     Uint8List bytes,
     String filename,
   ) async {
+    check(
+      !await materialBinding(draftDir(draft.id)).exists(),
+      '此草稿使用独立素材目录，请在素材目录和数据描述中添加图片，再重新导入。',
+    );
     final info = await compute(inspectStaticImage, bytes);
     final ext = info['mediaType'] == 'image/png' ? '.png' : '.jpg';
     final relative = 'assets/${info['sha256']}$ext';
@@ -299,16 +333,27 @@ extension V2Repository on StudyRepository {
     try {
       final assets = <Map<String, dynamic>>[];
       final names = d.assets.toList()..sort();
+      final binding = bindingAt(draftDir(draft.id));
+      final catalogFile = File(
+        p.join(draftDir(d.studyId).path, 'catalog.json'),
+      );
+      final catalog = await catalogFile.exists()
+          ? records(jsonDecode(await catalogFile.readAsString()))
+          : <Map<String, dynamic>>[];
+      final indexed = {for (final a in catalog) a['path'] as String: a};
       for (final relative in names) {
-        final original = await sourceFile(draftDir(d.studyId), relative);
-        final output = File(p.joinAll([temp.path, ...relative.split('/')]));
-        await output.parent.create(recursive: true);
-        await original.copy(output.path);
-        final info = await compute(
-          inspectStaticImage,
-          await output.readAsBytes(),
-        );
+        final Map<String, dynamic> info =
+            indexed[relative] ??
+            await compute<Uint8List, Map<String, dynamic>>(
+              inspectStaticImage,
+              await materialBytes(draftDir(draft.id), relative),
+            );
         assets.add({'path': relative, ...info});
+      }
+      if (binding != null) {
+        await bindMaterialSource(temp, binding);
+      } else {
+        await bindMaterialRoot(temp, draftDir(draft.id));
       }
       final bytes = utf8.encode(
         const JsonEncoder.withIndent('  ').convert(d.toJson()),
@@ -323,13 +368,16 @@ extension V2Repository on StudyRepository {
         'createdAt': DateTime.now().toUtc().toIso8601String(),
         'definition': {'path': 'study.json', 'sha256': fileHash(bytes)},
         'assets': assets,
+        'materials': 'external@1',
         'implementations': {
           'method': '2afc@1',
-          'scheduler': '2afc-schedule@1',
+          'scheduler': d.sampling == null
+              ? '2afc-schedule@1'
+              : '2afc-schedule@2',
           'quality': 'basic-quality@1',
           'analysis': d.profile == null
               ? 'basic-analysis@1'
-              : 'photorealism-analysis@1',
+              : 'photorealism-analysis@${d.profile!['version']}',
         },
       };
       final e = Experiment.fromRelease(d.toJson(), release);
@@ -384,6 +432,16 @@ extension V2Repository on StudyRepository {
     final dir = revisionDir(e.id);
     final stored = await readRelease(dir);
     check(digestJson(stored.toJson()) == digestJson(e.toJson()), '版本内容已变化');
+    if (e.release!['materials'] == 'external@1') {
+      final binding = bindingAt(dir);
+      check(binding != null, '请先加载测试素材目录');
+      final source = binding!['root'] as String;
+      check(
+        source.startsWith('content://') || await Directory(source).exists(),
+        '测试素材目录不存在，请重新加载测试素材目录',
+      );
+      return;
+    }
     for (final asset in records(e.release!['assets'])) {
       final file = await sourceFile(dir, asset['path'] as String);
       check(
@@ -434,7 +492,10 @@ extension V2Repository on StudyRepository {
       final releaseEntry = archive.findFile('release.json');
       final wanted = {
         'study.json',
-        ...d.assets,
+        if (releaseEntry == null ||
+            jsonDecode(utf8.decode(releaseEntry.content))['materials'] !=
+                'external@1')
+          ...d.assets,
         if (releaseEntry != null) 'release.json',
       };
       for (final relative in wanted) {
@@ -445,10 +506,17 @@ extension V2Repository on StudyRepository {
         await output.writeAsBytes(entry!.content, flush: true);
       }
       if (releaseEntry == null) {
-        return StudyImport(draft: await importSourceDirectory(temp));
+        // ZIP sources must keep their extracted materials after import.
+        final retained = Directory(p.join(root.path, 'materials', uuid()));
+        await retained.parent.create(recursive: true);
+        await temp.rename(retained.path);
+        return StudyImport(draft: await importSourceDirectory(retained));
       }
       final e = await readRelease(temp);
-      for (final asset in records(e.release!['assets'])) {
+      for (final asset
+          in e.release!['materials'] == 'external@1'
+              ? <Map<String, dynamic>>[]
+              : records(e.release!['assets'])) {
         final data = await (await sourceFile(
           temp,
           asset['path'] as String,
@@ -465,7 +533,7 @@ extension V2Repository on StudyRepository {
           digestJson(existing.toJson()) == digestJson(e.toJson()),
           '相同版本 ID 对应不同内容',
         );
-        await verify(existing);
+        if (e.release!['materials'] != 'external@1') await verify(existing);
       } else {
         await temp.rename(target.path);
       }
@@ -476,12 +544,13 @@ extension V2Repository on StudyRepository {
   }
 
   Future<Uint8List> exportV2Package(Experiment e) async {
-    await verify(e);
+    final stored = await readRelease(revisionDir(e.id));
+    check(digestJson(stored.toJson()) == digestJson(e.toJson()), '版本内容已变化');
     final archive = Archive();
     for (final name in [
       'study.json',
       'release.json',
-      ...e.definition!.assets,
+      if (e.release!['materials'] != 'external@1') ...e.definition!.assets,
     ]) {
       final data = await File(
         p.joinAll([revisionDir(e.id).path, ...name.split('/')]),
@@ -533,6 +602,13 @@ extension V2Repository on StudyRepository {
         'response_ms',
         'answered_at',
         'interrupted',
+        if (e.definition!.sampling != null) ...[
+          'frame',
+          'view',
+          'sampling_seed',
+          'a_sha256',
+          'b_sha256',
+        ],
       ],
     ];
     for (final s in sessions) {
@@ -561,6 +637,13 @@ extension V2Repository on StudyRepository {
           s.events.any(
             (ev) => ev['trialId'] == t.id && ev['type'] == 'interruption',
           ),
+          if (e.definition!.sampling != null) ...[
+            c.frame,
+            c.view,
+            s.seed,
+            s.materialHashes[c.gt],
+            s.materialHashes[c.render],
+          ],
         ]);
       }
     }

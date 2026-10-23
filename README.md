@@ -46,11 +46,13 @@ python tools/study_data.py migrate demo-data/demo.study.zip validation/migrated-
 
 ## 真实感模板与旧数据
 
-“真实感评测模板”保存原方案的登记字段、参与条件、两轮次序平衡、四个场景视点覆盖、独立练习、两道控制题和真实感判定。发布定义包含每题至少 15 位有效参与者、专家比例不超过 1/3、序列识别率不超过 75% 等具体规则。
+Windows 点击“加载真实感素材目录”，直接选择包含四个 `*_renders` 序列的上级目录。软件读取 `frame*/test/primitive/{gt,renders}` 的全部候选图片，不复制原图。每位参与者独立随机抽帧和视点，VRU 各 4 对、Dance / Show 各 6 对；每对两种次序各一次，共 40 次判断。恢复会话沿用已抽出的题目。当前没有练习和控制素材，自动载入版本明确标记为演练。
+
+新真实感模板使用每人抽样与 profile 2，保留登记字段、独立练习和控制要求。旧 profile 1 的固定单帧题库、逐图人数条件和统计实现继续兼容。具体抽样规则、测试状态和原目录操作见 [Windows 真实素材流程](docs/real-materials-workflow.md)。本轮先完成 Windows 联调，安卓目录读取和最终安装包发布后置。
 
 导入旧 schema 1 测试包后，可继续建立或恢复旧会话、导出与合并旧 JSON，原随机算法与统计结果保持不变。已有本地目录和 Android 应用 ID 保留。单个损坏文件显示读取提示，不阻断其他实验。
 
-旧版实验的“复制为 v2 真实感草稿”会复制素材与元数据，应用完整模板后可发布新版本。Python 转换器生成通用源描述，旧规则只在 metadata 中留作追溯；如需真实感判定，需在草稿中明确应用该模板。metadata 本身不激活统计行为。
+旧版实验的“复制为 v2 真实感草稿”保留元数据和原模板规则，关联独立素材目录。Python 转换器仍用于历史源描述迁移；metadata 本身不激活统计行为。
 
 旧目录读取与方案记录归档在 [schema 1 使用说明](docs/legacy-v1.md)，供旧工具或适配脚本参考。
 
@@ -58,9 +60,9 @@ python tools/study_data.py migrate demo-data/demo.study.zip validation/migrated-
 
 本地根目录继续为 Windows `LOCALAPPDATA/PCNL/SubjectiveStudy/studies-v1`、Android App 私有 `files/studies-v1`。`experiments/` 保留旧实验，`sessions/` 保存全部会话，`drafts/<studyId>/` 保存可编辑定义和素材，`revisions/<revisionId>/` 保存冻结的发布版本。
 
-发布时解码检查静态 PNG / JPEG，生成 SHA-256、真实宽高和执行实现版本。开始会话前复核素材；跨设备导入同一发布包保持相同 revisionId。完整结果 JSON 包含定义、发布清单、实际排程、原始答案和呈现/中断事件，素材由发布 ZIP 提供。CSV 为逐题分析明细。
+软件包与测试素材分离：新发布的 v2 包只包含定义与清单；素材目录位置保存在本机，不进入发布包。导入包后加载对应的测试素材目录即可采集。原始 renders 池只索引目录，每位参与者抽样后完整解码所选图片并保存指纹，呈现与恢复时复核。完整 JSON 包含实际抽样、原始答案和呈现/中断事件；CSV 包含帧、视点、种子和图片指纹。旧版自带图片的包继续读取。
 
-不同发布版本不能直接合并结果；相同会话重复导入幂等、不同内容报冲突。不同观看条件分别展示。单个 ZIP 上限 512 MB，展开量及标准目录导入上限 1 GB。Android 目录快照仅复制 PNG、JPEG、JSON，支持任意子目录；大素材建议先在 PC 发布精简包。
+不同发布版本不能直接合并结果；相同会话重复导入幂等、不同内容报冲突。不同观看条件分别展示。旧素材 ZIP 上限 512 MB、展开上限 1 GiB；Windows 独立素材目录不受此限制。本轮未联调 Android 的大素材目录读取，也不生成安装包。
 
 ## 开发与验证
 

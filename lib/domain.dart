@@ -177,11 +177,13 @@ class Experiment {
     );
     final expected = {
       'method': '2afc@1',
-      'scheduler': '2afc-schedule@1',
+      'scheduler': definition.sampling == null
+          ? '2afc-schedule@1'
+          : '2afc-schedule@2',
       'quality': 'basic-quality@1',
       'analysis': definition.profile == null
           ? 'basic-analysis@1'
-          : 'photorealism-analysis@1',
+          : 'photorealism-analysis@${definition.profile!['version']}',
     };
     check(
       digestJson(implementations) == digestJson(expected),
@@ -200,8 +202,14 @@ class Experiment {
       final path = assetPath(asset['path']);
       check(
         !byPath.containsKey(path) &&
-            asset['sha256'] is String &&
-            RegExp(r'^[a-f0-9]{64}$').hasMatch(asset['sha256'] as String) &&
+            ((asset['sha256'] is String &&
+                    RegExp(
+                      r'^[a-f0-9]{64}$',
+                    ).hasMatch(asset['sha256'] as String)) ||
+                (release['materials'] == 'external@1' &&
+                    asset['sha256'] == null &&
+                    asset['bytes'] is int &&
+                    (asset['bytes'] as int) >= 0)) &&
             asset['width'] is int &&
             asset['height'] is int &&
             (asset['width'] as int) > 0 &&
@@ -226,8 +234,8 @@ class Experiment {
         kind: item['role'] as String,
         gt: item['a'] as String,
         render: item['b'] as String,
-        gtHash: a['sha256'] as String,
-        renderHash: b['sha256'] as String,
+        gtHash: a['sha256'] as String? ?? '',
+        renderHash: b['sha256'] as String? ?? '',
         frame: meta['frame'] is int ? meta['frame'] as int : -1,
         view: meta['view'] is int ? meta['view'] as int : -1,
         iteration: meta['iteration'] is int ? meta['iteration'] as int : 0,
@@ -375,12 +383,14 @@ class Trial {
   final bool capturedFirst;
   final String? role;
   final int repetition;
+  final Map<String, dynamic>? sample;
   const Trial(
     this.id,
     this.caseId,
     this.capturedFirst, {
     this.role,
     this.repetition = 1,
+    this.sample,
   });
   factory Trial.fromJson(Map<String, dynamic> j) {
     if (j.containsKey('trialId')) {
@@ -397,6 +407,9 @@ class Trial {
         (j['order'] as List).first == 'a',
         role: j['role'] as String,
         repetition: j['repetition'] as int,
+        sample: j['sample'] == null
+            ? null
+            : jsonMap(immutableJson(j['sample']), 'sample'),
       );
     }
     return Trial(
@@ -414,6 +427,7 @@ class Trial {
           'role': role,
           'repetition': repetition,
           'order': order,
+          if (sample != null) 'sample': sample,
         }
       : {'id': id, 'caseId': caseId, 'capturedFirst': capturedFirst};
   int get correctChoice => capturedFirst ? 1 : 2;
@@ -455,6 +469,7 @@ List<Trial> buildSchedule(Experiment experiment, int seed) {
 }
 
 class StudySession {
+  final Map<String, String> materialHashes;
   final String id, experimentId, participantId, startedAt;
   final int seed;
   final int schema;
@@ -482,8 +497,10 @@ class StudySession {
     this.schema = 1,
     this.studyId,
     this.schedulerVersion,
+    Map<String, String>? materialHashes,
   }) : answers = answers ?? [],
-       events = events ?? [];
+       events = events ?? [],
+       materialHashes = materialHashes ?? {};
   bool get complete => completedAt != null && answers.length == trials.length;
   factory StudySession.fromJson(Map<String, dynamic> j) {
     if (![1, 2].contains(j['schema'])) throw const FormatException('不支持的结果版本');
@@ -511,6 +528,9 @@ class StudySession {
       schema: v2 ? 2 : 1,
       studyId: j['studyId'] as String?,
       schedulerVersion: j['schedulerVersion'] as String?,
+      materialHashes: j['materialHashes'] == null
+          ? null
+          : Map<String, String>.from(j['materialHashes'] as Map),
     );
   }
   Map<String, dynamic> toJson() => {
@@ -533,6 +553,7 @@ class StudySession {
     'trials': trials.map((t) => t.toJson()).toList(),
     'answers': answers,
     'events': events,
+    if (materialHashes.isNotEmpty) 'materialHashes': materialHashes,
     'completedAt': completedAt,
     'practiceStarted': practiceStarted,
     'formalStarted': formalStarted,

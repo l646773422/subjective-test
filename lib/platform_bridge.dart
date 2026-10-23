@@ -13,6 +13,10 @@ class PlatformBridge {
         );
   static Future<String?> pickDirectory() =>
       channel.invokeMethod<String>('pickDirectory');
+  static Future<Map<String, dynamic>?> pickMaterialDirectory() async =>
+      channel.invokeMapMethod<String, dynamic>('pickMaterialDirectory');
+  static Future<Uint8List> readMaterial(String uri) async =>
+      (await channel.invokeMethod<Uint8List>('readMaterial', uri))!;
   static Future<void> presentation(bool enabled) async {
     await channel.invokeMethod<void>('presentation', enabled);
     if (Platform.isAndroid) {

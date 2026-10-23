@@ -1,8 +1,12 @@
 # 主观评价平台数据与操作规范 v2
 
-日期：2026-10-16。
+日期：2026-10-16；2026-10-23 补充素材目录独立与每位参与者抽样。
 
-所有数据来源统一转换成一个 `study.json` 和它引用的图片。平台不识别训练输出目录、场景名称、视点编号或迭代目录；这些信息由外部转换器处理，可作为元数据保留。当前方法只开放图片顺序呈现的 `2afc`。
+执行层统一使用 `study.json` 和相对图片路径。来源可以由外部转换器处理，也可以使用真实感模板的目录适配器直接加载 `*_renders/frame*/test/primitive/{gt,renders}`。来源规则不进入通用排程和呈现层。当前方法只开放图片顺序呈现的 `2afc`。
+
+当前 Windows 新版本的实验包与素材分离：包内只有 `study.json` 与 `release.json`，本机 `materials.json` 绑定独立素材目录，不进入包。旧的自带图片包继续兼容。renders 素材池发布清单可以用 `sha256: null` 与 `bytes` 记录尚未抽中的文件；每位参与者开始前完整解码所选图片、保存 `materialHashes`，之后呈现、恢复和合并都核对实际指纹。目录索引不等于全池像素校验。
+
+可选 `sampling: {"mode":"per_participant","perGroup":{"组名":4}}` 将该组的 main 图片对作为候选池，每人不放回抽取指定数量，再按 schedule 做重复与次序平衡。省略字段保留固定题库旧行为。新会话使用 `2afc-schedule@2`，每题记录 sample.group/frame/view；同一会话恢复不重新抽样。抽样组必须覆盖全部 main 题，数量不能超过该组候选数。旧定义不增加新的默认字段，原 manifest 和排程实现保持兼容。
 
 Flutter 已接入标准目录 / ZIP 导入、持久化草稿、预览与发布、v2 采集和结果交换。Python 校验器与旧包转换器负责源数据。schema 1 的包、会话、排程和统计实现继续保留。
 
@@ -56,6 +60,7 @@ my-study/
 | `analysis` | 否 | 基础分析指标 |
 | `metadata` | 否 | 来源、备注或业务标签，默认空对象，不影响执行 |
 | `participantFields` | 否 | 实验自行定义的登记字段，默认空列表 |
+| `sampling` | 否 | 每人独立从各分组抽取指定数量；省略时使用全部正式题 |
 
 `studyId` 和题目 `id` 使用 1～80 位英文字母、数字、点、下划线或连字符，第一位为字母或数字。界面创建实验时自动生成 `studyId`；脚本可以填写易读的名称。题目 ID 在本实验内唯一，不要求与文件名相同。
 
@@ -175,13 +180,13 @@ Python 工具检查字段、路径、文件存在性和非空性；不执行完�
 
 `participantFields` 默认空列表。每项包含 `id`、`label` 和 `type`，类型支持 `text`、`integer`、`number`、`boolean`；可选 `required`、数值 `min/max`。匿名编号和观看条件是基础登记信息，不需要在列表中重复定义。`quality.requiredTrue` 引用已定义的布尔字段，指定参与条件；字段值不满足时不计入有效结果。
 
-真实感模板显式保存年龄、视力、色觉、独立性和专家身份字段，以及设备型号、观看距离要求。`analysis.profile` 是可选的专用分析配置，包含 `type: "photorealism"`、`version: 1`、`minObserversPerItem`、专家比例分子 `expertNumerator` 和分母 `expertDenominator`、`maxSequenceAccuracy`、`equalCoverage`、`sequenceViews`、`resolutions`、`practiceMin/practiceMax` 和 `controlCount`。客户端只接受支持的配置版本，并把全部参数冻结进发布定义。
+真实感模板显式保存年龄、视力、色觉、独立性和专家身份字段，以及设备型号、观看距离要求。`analysis.profile` 为可选分析配置。历史 `version: 1` 保留 `minObserversPerItem` 和固定单帧视点覆盖；新 `version: 2` 使用 `minObserversPerSequence`，允许候选池包含多帧，并要求每人抽样。两者都记录专家比例、阈值、序列允许视点、分辨率、练习和控制题数量。人数和阈值是实验配置，不等同于满足外部认证；实际当前材料缺少练习和控制，因此直接载入版本仍标记为演练。
 
 在界面选择或应用模板会生成具体配置；直接修改 metadata 中的旧模板名称不会改变实验行为。规范的基础默认值在 Python 与 Dart 中通过同一份 `test/fixtures/v2-expanded.json` 校验。
 
 ## 4 统一操作流程
 
-1. **创建或导入草稿。**界面填写名称和问题，选择 2AFC；导入标准目录或标准 ZIP。其他数据格式先运行外部适配器。
+1. **创建或导入草稿。**界面填写名称和问题，选择 2AFC；导入标准目录或标准 ZIP。当前真实感原目录直接使用“加载真实感素材目录”，其他格式可使用外部适配器。
 2. **检查和预览。**显示题量、练习/控制数量、预计作答数和预计观看时间，预览两张素材及一个完整题次；错误定位到具体题目和字段。作答时间不限，不能承诺固定总耗时。
 3. **发布实验版本。**验证图片、排程约束和配置，生成不可变版本，冻结素材与说明。修改后保存草稿，再发布新版本。
 4. **采集。**选择明确的发布版本，填写匿名参与者编号和观看条件，开始或恢复会话。登记表和参与条件由实验模板决定；通用入口不强制年龄、专家身份或某个观看距离。
@@ -195,7 +200,7 @@ Python 工具检查字段、路径、文件存在性和非空性；不执行完�
 
 ### 发布包
 
-发布 ZIP 内包含展开默认值的 `study.json`、引用的素材，以及机器生成的 `release.json`。源数据导入入口遇到 `release.json` 时按发布包验证，不能把它当普通草稿而忽略校验。
+新发布 ZIP 内仅包含展开默认值的 `study.json` 和机器生成的 `release.json`，原图独立存放并由本机加载。旧版把素材放入包的格式继续读取。源数据导入入口遇到 `release.json` 时按发布包验证，不能把它当普通草稿而忽略校验。
 
 `release.json` 的合同如下：
 
@@ -207,13 +212,14 @@ Python 工具检查字段、路径、文件存在性和非空性；不执行完�
 | `createdAt` | UTC ISO 8601 时间 |
 | `definition` | `path: "study.json"` 与该文件精确字节的 `sha256` |
 | `assets` | 按路径排序的数组，每项包含 `path`、`sha256`、`mediaType`、真实 `width` 和 `height` |
+| `materials` | 新包为 `external@1`，由本机选择独立素材目录；未知 SHA 需用 `bytes` 标记，并在会话中冻结实际抽中图片指纹 |
 | `implementations` | `method`、`scheduler`、`quality`、`analysis` 的明确实现版本标识 |
 
 只保存一次被重复引用的资源。哈希校验精确文件字节，不通过跨语言重新序列化 JSON 来猜测相同内容。同一 `revisionId` 对应不同内容时拒绝覆盖。客户端不支持某种方法、实现版本或配置时明确报错。
 
 ### 原始会话与导出
 
-标准结果 JSON 顶层包含 `schema: 2`、`studyId`、`revisionId`、发布清单、完整实验定义和 `sessions`。素材图片仍由测试包提供，结果 JSON 不嵌入图片。
+标准结果 JSON 顶层包含 `schema: 2`、`studyId`、`revisionId`、发布清单、完整实验定义和 `sessions`。素材图片由独立测试目录提供，结果 JSON 不嵌入图片。随机抽样会话额外保存所选素材的 `materialHashes`。
 
 每条会话至少记录 `sessionId`、`participantId`、`conditionId`、参与者登记信息、设备与显示环境、UTC 开始/完成时间、排程实现版本、随机种子、实际 `trials`、`answers` 和 `events`。观看条件使用稳定 ID，显示名称单独保存。
 

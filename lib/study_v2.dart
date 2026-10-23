@@ -87,6 +87,7 @@ class StudyDefinition {
       'items',
       'metadata',
       'participantFields',
+      'sampling',
     ], 'study');
     check(
       data['schema'] is int && data['schema'] == 2,
@@ -176,6 +177,7 @@ class StudyDefinition {
         'type',
         'version',
         'minObserversPerItem',
+        'minObserversPerSequence',
         'expertNumerator',
         'expertDenominator',
         'maxSequenceAccuracy',
@@ -188,12 +190,14 @@ class StudyDefinition {
       ], 'analysis.profile');
       check(
         profile['type'] == 'photorealism' &&
-            profile['version'] == 1 &&
+            [1, 2].contains(profile['version']) &&
             analysis['metric'] == 'accuracy',
         '不支持的分析模板或版本',
       );
       for (final k in [
-        'minObserversPerItem',
+        profile['version'] == 2
+            ? 'minObserversPerSequence'
+            : 'minObserversPerItem',
         'expertNumerator',
         'expertDenominator',
         'practiceMin',
@@ -334,6 +338,31 @@ class StudyDefinition {
       '图片路径不能仅以大小写区分，以便 Windows 与 Android 交换',
     );
     final main = items.where((i) => i['role'] == 'main').toList();
+    if (data.containsKey('sampling')) {
+      final sampling = jsonMap(data['sampling'], 'sampling');
+      keys(sampling, ['mode', 'perGroup'], 'sampling');
+      check(sampling['mode'] == 'per_participant', '只支持每位参与者独立抽样');
+      final counts = jsonMap(sampling['perGroup'], 'sampling.perGroup');
+      check(
+        counts.isNotEmpty &&
+            counts.entries.every(
+              (e) => nonEmpty(e.key) && e.value is int && (e.value as int) > 0,
+            ),
+        '每组抽样数量必须为正整数',
+      );
+      if (!draft) {
+        check(
+          main.every((i) => counts.containsKey(i['group'])) &&
+              counts.keys.every(
+                (g) =>
+                    main.where((i) => i['group'] == g).length >=
+                    (counts[g] as int),
+              ),
+          '素材池分组或抽样数量不符',
+        );
+      }
+      data['sampling'] = sampling;
+    }
     check(draft || main.isNotEmpty, '至少需要一道正式题');
     check(
       draft ||
@@ -356,6 +385,18 @@ class StudyDefinition {
             ? item['group'] as String
             : '';
         counts[group] = (counts[group] ?? 0) + 1;
+      }
+      if (data['sampling'] != null) {
+        final selected = jsonMap(
+          (data['sampling'] as Map)['perGroup'],
+          'perGroup',
+        );
+        counts.clear();
+        if (schedule['blockByGroup'] == true) {
+          counts.addAll(selected.cast<String, int>());
+        } else {
+          counts[''] = selected.values.cast<int>().fold(0, (a, b) => a + b);
+        }
       }
       check(counts.values.every((n) => n >= 2), '单题分块重复无法满足不相邻约束');
     }
@@ -383,6 +424,14 @@ class StudyDefinition {
   Map<String, dynamic>? get profile => analysis['profile'] == null
       ? null
       : jsonMap(analysis['profile'], 'profile');
+  Map<String, dynamic>? get sampling =>
+      _data['sampling'] == null ? null : jsonMap(_data['sampling'], 'sampling');
+  int get selectedMainCount => sampling == null
+      ? items.where((i) => i['role'] == 'main').length
+      : (sampling!['perGroup'] as Map).values.cast<int>().fold(
+          0,
+          (a, b) => a + b,
+        );
   List<Map<String, dynamic>> get items =>
       (_data['items'] as List).map((i) => jsonMap(i, 'item')).toList();
   List<Map<String, dynamic>> get participantFields =>
@@ -392,10 +441,9 @@ class StudyDefinition {
   Set<String> get assets => {
     for (final item in items) ...[item['a'] as String, item['b'] as String],
   };
-  int get trialCount => items.fold(
-    0,
-    (n, i) => n + (i['role'] == 'main' ? schedule['repetitions'] as int : 1),
-  );
+  int get trialCount =>
+      selectedMainCount * (schedule['repetitions'] as int) +
+      items.where((i) => i['role'] != 'main').length;
 
   void validateParticipant(Map<String, dynamic> participant) {
     for (final field in participantFields) {

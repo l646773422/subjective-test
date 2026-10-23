@@ -11,6 +11,8 @@ import 'domain.dart';
 import 'platform_bridge.dart';
 import 'study_templates.dart';
 part 'v2_repository.dart';
+part 'materials_repository.dart';
+part 'render_pool.dart';
 
 String uniqueId() =>
     '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}_${Random.secure().nextInt(0x7fffffff).toRadixString(36)}';
@@ -234,7 +236,7 @@ class StudyRepository {
     }
     return File(
       p.joinAll([
-        e.isV2 ? revisionDir(e.id).path : experimentDir(e.id).path,
+        e.isV2 ? materialRoot(e).path : experimentDir(e.id).path,
         ...p.posix.split(normalized),
       ]),
     );
@@ -467,6 +469,17 @@ class StudyRepository {
       body['sessions'],
     ).map(StudySession.fromJson).toList();
     final existing = await sessions(e);
+    final fingerprints = <String, String>{};
+    for (final s in [...existing, ...incoming]) {
+      for (final entry in s.materialHashes.entries) {
+        check(
+          !fingerprints.containsKey(entry.key) ||
+              fingerprints[entry.key] == entry.value,
+          '同一路径的素材内容不一致，不能合并：${entry.key}',
+        );
+        fingerprints[entry.key] = entry.value;
+      }
+    }
     final byId = {for (final s in existing) s.id: s};
     final byPerson = {
       for (final s in existing)

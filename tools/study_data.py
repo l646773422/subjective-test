@@ -84,7 +84,7 @@ def normalize(study, root=None):
     """Return effective settings without changing the author's input object."""
     object_keys(study, {
         "schema", "studyId", "name", "method", "question", "instructions", "isDemo",
-        "presentation", "schedule", "quality", "analysis", "items", "metadata", "participantFields",
+        "presentation", "schedule", "quality", "analysis", "items", "metadata", "participantFields", "sampling",
     }, "study")
     value = copy.deepcopy(study)
     require(type(value.get("schema")) is int and value["schema"] == 2, "schema must be 2")
@@ -144,10 +144,10 @@ def normalize(study, root=None):
             "requiredTrue must reference defined boolean participant fields")
     profile = value["analysis"].get("profile")
     if "profile" in value["analysis"]:
-        object_keys(profile, ("type", "version", "minObserversPerItem", "expertNumerator", "expertDenominator",
+        object_keys(profile, ("type", "version", "minObserversPerItem", "minObserversPerSequence", "expertNumerator", "expertDenominator",
                     "maxSequenceAccuracy", "equalCoverage", "sequenceViews", "resolutions", "practiceMin", "practiceMax", "controlCount"), "analysis.profile")
-        require(profile.get("type") == "photorealism" and profile.get("version") == 1 and value["analysis"]["metric"] == "accuracy", "unsupported analysis profile")
-        for key in ("minObserversPerItem", "expertNumerator", "expertDenominator", "practiceMin", "practiceMax", "controlCount"):
+        require(profile.get("type") == "photorealism" and profile.get("version") in (1, 2) and value["analysis"]["metric"] == "accuracy", "unsupported analysis profile")
+        for key in (("minObserversPerSequence" if profile["version"] == 2 else "minObserversPerItem"), "expertNumerator", "expertDenominator", "practiceMin", "practiceMax", "controlCount"):
             require(type(profile.get(key)) is int and profile[key] > 0, f"invalid profile.{key}")
         require(type(profile.get("equalCoverage")) is bool and type(profile.get("maxSequenceAccuracy")) in (int, float)
                 and 0 <= profile["maxSequenceAccuracy"] <= 1, "invalid profile threshold")
@@ -182,6 +182,17 @@ def normalize(study, root=None):
             main.append(item)
     require(len({path.lower() for path in files}) == len(files), "image paths cannot differ only in letter case")
     require(main, "at least one main item is required")
+    selected_counts = None
+    if "sampling" in value:
+        sampling = value["sampling"]
+        object_keys(sampling, ("mode", "perGroup"), "sampling")
+        selected_counts = sampling.get("perGroup")
+        require(sampling.get("mode") == "per_participant" and isinstance(selected_counts, dict)
+                and bool(selected_counts) and all(text(k) and type(n) is int and n > 0 for k, n in selected_counts.items()),
+                "sampling requires per_participant mode and positive perGroup counts")
+        require(all(i.get("group") in selected_counts for i in main)
+                and all(sum(i.get("group") == k for i in main) >= n for k, n in selected_counts.items()),
+                "sampling groups or counts do not match the pool")
     require(value["analysis"]["metric"] != "accuracy" or all("answer" in item for item in main),
             "accuracy requires an answer for every main item")
     if schedule["blockByGroup"]:
@@ -190,7 +201,8 @@ def normalize(study, root=None):
         blocks = {}
         for item in main:
             blocks.setdefault(item.get("group") if schedule["blockByGroup"] else None, []).append(item)
-        require(all(len(block) >= 2 for block in blocks.values()),
+        block_counts = (selected_counts.values() if schedule["blockByGroup"] else [sum(selected_counts.values())]) if selected_counts else [len(b) for b in blocks.values()]
+        require(all(n >= 2 for n in block_counts),
                 "cannot avoid adjacent repeats in a block with only one main item")
     require(schedule["controlPairOrder"] != "balanced" or sum(item["role"] == "control" for item in value["items"]) % 2 == 0,
             "balanced control order requires an even number of controls")
@@ -212,7 +224,9 @@ def load_study(path):
 
     with path.open(encoding="utf-8-sig") as stream:
         value = json.load(stream, parse_constant=reject_constant)
-    return normalize(value, path.parent)
+    library = path.parent / "materials.json"
+    asset_root = Path(json.loads(library.read_text(encoding="utf-8"))["root"]) if library.exists() else path.parent
+    return normalize(value, asset_root)
 
 
 def migrate(legacy, destination, study_id=None):
@@ -290,7 +304,7 @@ def summary(study):
     counts = {role: sum(item["role"] == role for item in study["items"])
               for role in ("main", "practice", "control")}
     return {"studyId": study["studyId"], "items": counts,
-            "scheduledResponses": counts["main"] * study["schedule"]["repetitions"] + counts["practice"] + counts["control"],
+            "scheduledResponses": (sum(study["sampling"]["perGroup"].values()) if "sampling" in study else counts["main"]) * study["schedule"]["repetitions"] + counts["practice"] + counts["control"],
             "isDemo": study["isDemo"]}
 
 
