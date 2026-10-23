@@ -6,6 +6,8 @@ import 'package:path/path.dart' as p;
 import 'domain.dart';
 import 'repository.dart';
 import 'quick_test_settings.dart';
+import 'quick_test_dialog.dart';
+import 'labeled_control.dart';
 
 class QuickTestPanel extends StatefulWidget {
   final StudyRepository repository;
@@ -168,6 +170,15 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
     }
   }
 
+  Future<void> configure() async {
+    if (locked || settings == null) return;
+    final applied = await showDialog<bool>(
+      context: context,
+      builder: (_) => QuickTestDialog(settings: settings!),
+    );
+    if (applied == true && mounted) setState(() => failure = null);
+  }
+
   @override
   void dispose() {
     pendingGeneration++;
@@ -183,20 +194,27 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
     super.dispose();
   }
 
-  Widget card(String title, Widget child) => Card(
+  Widget card(String title, Widget child, {Widget? action}) => Card(
     margin: EdgeInsets.zero,
     child: Padding(
       padding: const EdgeInsets.all(22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Color(0xff173e3a),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xff173e3a),
+                  ),
+                ),
+              ),
+              ?action,
+            ],
           ),
           const SizedBox(height: 16),
           child,
@@ -220,20 +238,23 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
     double size = 150,
   }) => SizedBox(
     width: size,
-    child: TextField(
-      key: Key(key),
-      controller: controller,
-      enabled: !locked,
-      keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        isDense: true,
+    child: LabeledControl(
+      label: label,
+      child: TextField(
+        key: Key(key),
+        controller: controller,
+        scrollPadding: const EdgeInsets.all(32),
+        enabled: !locked,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          border: const OutlineInputBorder(),
+          isDense: false,
+        ),
+        onChanged: (text) => setState(() {
+          change(text);
+          failure = null;
+        }),
       ),
-      onChanged: (text) => setState(() {
-        change(text);
-        failure = null;
-      }),
     ),
   );
   @override
@@ -282,7 +303,7 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                 const Text('正在准备，请稍候…')
               else if (model != null && sameDirectory)
                 Text(
-                  '${model.base.name} · ${model.available.values.fold(0, (a, b) => a + b)} 对候选素材 · ${model.available.length} 个分组',
+                  '${p.basename(p.normalize(loadedRoot!))} · ${model.available.values.fold(0, (a, b) => a + b)} 对候选素材 · ${model.available.length} 个分组',
                 )
               else if (model != null)
                 const Text(
@@ -329,7 +350,7 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          sequenceLabels[entry.key] ?? entry.key,
+                          model.groupNames[entry.key] ?? entry.key,
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         Text(
@@ -356,32 +377,34 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
               ),
             ),
           const SizedBox(height: 10),
-          DropdownButtonFormField<int>(
-            key: ValueKey('quick-repetitions-${model.repetitions}'),
-            initialValue: model.repetitions,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: '同一组图片测几遍',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: [
-              for (final n in ({1, 2, model.repetitions}.toList()..sort()))
-                DropdownMenuItem(
-                  value: n,
-                  child: Text(
-                    n.isEven && model.base.schedule['pairOrder'] == 'balanced'
-                        ? n == 2
-                              ? '测 2 遍（图片顺序互换）'
-                              : '测 $n 遍（两种顺序各 ${n ~/ 2} 遍）'
-                        : '测 $n 遍',
-                    overflow: TextOverflow.ellipsis,
+          LabeledControl(
+            label: '同一组图片测几遍',
+            child: DropdownButtonFormField<int>(
+              key: ValueKey('quick-repetitions-${model.repetitions}'),
+              initialValue: model.repetitions,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: false,
+              ),
+              items: [
+                for (final n in ({1, 2, model.repetitions}.toList()..sort()))
+                  DropdownMenuItem(
+                    value: n,
+                    child: Text(
+                      n.isEven && model.base.schedule['pairOrder'] == 'balanced'
+                          ? n == 2
+                                ? '测 2 遍（图片顺序互换）'
+                                : '测 $n 遍（两种顺序各 ${n ~/ 2} 遍）'
+                          : '测 $n 遍',
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-            ],
-            onChanged: locked
-                ? null
-                : (n) => setState(() => model.repetitions = n!),
+              ],
+              onChanged: locked
+                  ? null
+                  : (n) => setState(() => model.repetitions = n!),
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -478,30 +501,41 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
           ),
           if (model.stereoEnabled) ...[
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              key: ValueKey('quick-stereo-input-${model.stereoInput}'),
-              initialValue: model.stereoInput,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: '3D 素材如何存放',
-                border: OutlineInputBorder(),
-                isDense: true,
+            LabeledControl(
+              label: '3D 素材如何存放',
+              child: DropdownButtonFormField<String>(
+                key: ValueKey('quick-stereo-input-${model.stereoInput}'),
+                initialValue: model.stereoInput,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  isDense: false,
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'sbs', child: Text('左右眼已拼在一张图（SBS）')),
+                  DropdownMenuItem(
+                    value: 'separate',
+                    child: Text('左右眼分别存成两张图'),
+                  ),
+                ],
+                onChanged: locked
+                    ? null
+                    : (value) => setState(() {
+                        model.stereoInput = value!;
+                        failure = null;
+                      }),
               ),
-              items: const [
-                DropdownMenuItem(value: 'sbs', child: Text('左右眼已拼在一张图（SBS）')),
-                DropdownMenuItem(value: 'separate', child: Text('左右眼分别存成两张图')),
-              ],
-              onChanged: locked
-                  ? null
-                  : (value) => setState(() {
-                      model.stereoInput = value!;
-                      failure = null;
-                    }),
             ),
           ],
           if (model.stereoEnabled)
             ExpansionTile(
+              key: const Key('quick-stereo-details'),
               tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.symmetric(vertical: 12),
+              expandedCrossAxisAlignment: CrossAxisAlignment.start,
+              expandedAlignment: Alignment.centerLeft,
+              shape: const Border(),
+              collapsedShape: const Border(),
               title: Text(
                 model.layout == 'full_sbs'
                     ? 'Full SBS · 左右各一幅完整画面'
@@ -520,22 +554,26 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                     ),
                     SizedBox(
                       width: 200,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: model.pointerMapping,
-                        decoration: const InputDecoration(labelText: '鼠标映射'),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'screen',
-                            child: Text('整屏连续'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'per_eye',
-                            child: Text('按半屏（调试）'),
-                          ),
-                        ],
-                        onChanged: locked
-                            ? null
-                            : (v) => setState(() => model.pointerMapping = v!),
+                      child: LabeledControl(
+                        label: '鼠标映射',
+                        child: DropdownButtonFormField<String>(
+                          initialValue: model.pointerMapping,
+                          decoration: const InputDecoration(isDense: false),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'screen',
+                              child: Text('整屏连续'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'per_eye',
+                              child: Text('按半屏（调试）'),
+                            ),
+                          ],
+                          onChanged: locked
+                              ? null
+                              : (v) =>
+                                    setState(() => model.pointerMapping = v!),
+                        ),
                       ),
                     ),
                   ],
@@ -604,13 +642,13 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                         : '${model.stereoEnabled ? '每眼 ' : ''}Patch ${model.patchWidth} × ${model.patchHeight} 像素',
                   ),
                   chip(
-                    '提示 ${model.base.presentation['promptMs']} ms · 图片 ${model.base.presentation['imageMs']} ms',
+                    '提示 ${secondsText(model.promptMs)} 秒 · 每张图片 ${secondsText(model.imageMs)} 秒',
                   ),
                   if (model.base.isDemo) chip('流程演练'),
                 ],
               ),
               const SizedBox(height: 12),
-              Text('作答问题：${model.base.question}'),
+              Text('作答问题：${model.question}'),
               if (error != null || !sameDirectory)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
@@ -652,14 +690,22 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
               ),
             ],
           ),
+          action: TextButton.icon(
+            key: const Key('quick-open-settings'),
+            onPressed: locked ? null : configure,
+            icon: const Icon(Icons.settings_outlined, size: 18),
+            label: const Text('测试设置'),
+          ),
         ),
         if (pending.isNotEmpty) ...[
           const SizedBox(height: 18),
           card(
             '继续上次未完成的测试',
             Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('每条会话沿用各自原来的抽样和显示参数。'),
+                const SizedBox(height: 12),
                 for (final (current, session) in pending)
                   ListTile(
                     contentPadding: EdgeInsets.zero,

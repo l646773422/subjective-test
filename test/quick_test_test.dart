@@ -74,6 +74,10 @@ void main() {
       final repo = StudyRepository(Directory('${temp.path}/repo'));
       final draft = await repo.createRenderPool(tree());
       final model = QuickTestSettings(draft.definition);
+      expect(
+        model.groupNames['Dance_Dunhuang_Pair_1080'],
+        'Dance_Dunhuang_Pair_1080_0.001_1.0_renders',
+      );
       final values = {
         for (final e in model.counts.entries) e.key: '${e.value}',
       };
@@ -218,6 +222,20 @@ void main() {
         await enter('quick-patch-height', '96');
         expect(find.text('抽 3 组，共需答 6 题'), findsOneWidget);
         expect(find.text('Patch 144 × 96 像素'), findsOneWidget);
+        await click('quick-open-settings');
+        await enter('quick-prompt-seconds', '-1');
+        await click('quick-settings-apply');
+        expect(find.byKey(const Key('quick-settings-error')), findsOneWidget);
+        await click('quick-settings-cancel');
+        expect(find.text('提示 2 秒 · 每张图片 3 秒'), findsOneWidget);
+        await click('quick-open-settings');
+        await enter('quick-prompt-seconds', '.5');
+        await enter('quick-image-seconds', '1.25');
+        await enter('quick-question', '选择你认为更自然的一幅');
+        await enter('quick-instructions', '保持当前观看位置');
+        await click('quick-settings-apply');
+        expect(find.text('提示 0.5 秒 · 每张图片 1.25 秒'), findsOneWidget);
+        expect(find.text('作答问题：选择你认为更自然的一幅'), findsOneWidget);
         await click('quick-stereo-enabled');
         expect(
           tester
@@ -231,6 +249,10 @@ void main() {
         expect(started!.sampling!['perGroup'], {'sceneA': 1, 'sceneB': 2});
         expect(started!.patch!['width'], 144);
         expect(started!.patch!['height'], 96);
+        expect(started!.presentation['promptMs'], 500);
+        expect(started!.presentation['imageMs'], 1250);
+        expect(started!.question, '选择你认为更自然的一幅');
+        expect(started!.instructions, '保持当前观看位置');
         await enter(
           'quick-material-directory',
           '${Directory.current.path}/not-yet-read',

@@ -11,12 +11,6 @@ const protocolViews = <String, List<int>>{
   'Dance_Dunhuang_Pair_1080': [0, 10, 20, 30, 40, 50],
   'Show_Groups_4K': [0, 10, 20, 30, 40, 50],
 };
-const sequenceLabels = {
-  'VRU_gz': '篮球场景 GZ',
-  'VRU_dg4': '篮球场景 DG4',
-  'Dance_Dunhuang_Pair_1080': '敦煌双人舞',
-  'Show_Groups_4K': '多人场景 4K',
-};
 
 // Version 1 scheduling uses a specified PRNG and shuffle, independent of SDK changes.
 class StableRandom implements Random {

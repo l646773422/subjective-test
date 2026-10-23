@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'study_v2.dart';
+import 'labeled_control.dart';
 
 class GenericParticipantDialog extends StatefulWidget {
   final StudyDefinition definition;
@@ -63,13 +64,17 @@ class _GenericParticipantDialogState extends State<GenericParticipantDialog> {
     bool number = false,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 14),
-    child: TextField(
-      key: key,
-      controller: controller,
-      keyboardType: number
-          ? const TextInputType.numberWithOptions(decimal: true)
-          : TextInputType.text,
-      decoration: InputDecoration(labelText: label),
+    child: LabeledControl(
+      label: label,
+      child: TextField(
+        key: key,
+        controller: controller,
+        scrollPadding: const EdgeInsets.all(32),
+        keyboardType: number
+            ? const TextInputType.numberWithOptions(decimal: true)
+            : TextInputType.text,
+        decoration: const InputDecoration(isDense: false),
+      ),
     ),
   );
   void submit() {
@@ -140,7 +145,7 @@ class _GenericParticipantDialogState extends State<GenericParticipantDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('使用匿名编号。同一发布版本和观看条件下，优先恢复已有会话。'),
+            const Text('使用匿名编号。同一组测试参数和观看条件下，已有会话请返回首页继续。'),
             const SizedBox(height: 20),
             input(id, '参与者编号（必填）', key: const Key('participant-id')),
             input(
