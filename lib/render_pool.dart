@@ -10,11 +10,27 @@ extension RenderPoolRepository on StudyRepository {
       followLinks: false,
     )) {
       if (entry is File && p.extension(entry.path).toLowerCase() == '.png') {
+        // Read dimensions without decoding or copying the full external image.
+        final file = await entry.open();
+        late final Uint8List header;
+        try {
+          header = await file.read(24);
+        } finally {
+          await file.close();
+        }
+        check(
+          header.length == 24 &&
+              header.take(8).join(',') == '137,80,78,71,13,10,26,10',
+          'PNG 文件头无效：${entry.path}',
+        );
+        final dimensions = ByteData.sublistView(header);
         entries.add({
           'path': p
               .relative(entry.path, from: directory.path)
               .replaceAll('\\', '/'),
           'bytes': await entry.length(),
+          'width': dimensions.getUint32(16),
+          'height': dimensions.getUint32(20),
         });
       }
     }
@@ -29,7 +45,7 @@ extension RenderPoolRepository on StudyRepository {
         groups = <String, Map<String, Map<String, dynamic>>>{};
     final directories = <String, Set<String>>{};
     final pattern = RegExp(
-      r'^([^/]+_renders)/frame(\d+)/test/primitive/(gt|renders)/(\d+\.png)$',
+      r'^([^/]+_renders)/frame(\d+)/test/(?:primitive/)?(gt|renders)/(\d+\.png)$',
     );
     for (final entry in all) {
       final path = entry['path'] as String;
@@ -52,10 +68,7 @@ extension RenderPoolRepository on StudyRepository {
       check(!sides.containsKey(match[3]), '存在重复的帧与视点：$path');
       sides[match[3]!] = entry;
     }
-    check(
-      protocolViews.keys.every(groups.containsKey),
-      '请选择包含全部四个 *_renders 序列的上级目录',
-    );
+    check(groups.isNotEmpty, '未找到可配对的 GT/渲染图。请选择包含 *_renders 序列的上级目录');
     check(
       directories.values.every((v) => v.length == 1),
       '同一序列有多套 renders 目录，请只保留本次测试的一套',
@@ -69,7 +82,10 @@ extension RenderPoolRepository on StudyRepository {
       'sampling': {
         'mode': 'per_participant',
         'perGroup': {
-          for (final e in protocolViews.entries) e.key: e.value.length,
+          for (final e in protocolViews.entries.where(
+            (e) => groups.containsKey(e.key),
+          ))
+            e.key: min(e.value.length, groups[e.key]!.length),
         },
       },
       'schedule': {
@@ -86,7 +102,8 @@ extension RenderPoolRepository on StudyRepository {
       },
     });
     final items = <Map<String, dynamic>>[], assets = <Map<String, dynamic>>[];
-    for (final sequence in protocolViews.keys) {
+    final packedKinds = <bool>{};
+    for (final sequence in protocolViews.keys.where(groups.containsKey)) {
       final pairs = groups[sequence]!, views = protocolViews[sequence]!;
       final frameCoverage = <int, Set<int>>{};
       final sorted = pairs.keys.toList()
@@ -123,13 +140,16 @@ extension RenderPoolRepository on StudyRepository {
         for (final (alternative, role) in [('a', 'gt'), ('b', 'renders')]) {
           final entry = jsonMap(sides[role], 'file'),
               path = assetPath(entry['path']);
+          final actualWidth = entry['width'] as int? ?? width;
+          final actualHeight = entry['height'] as int? ?? height;
+          packedKinds.add(actualWidth == width * 2 && actualHeight == height);
           item[alternative] = path;
           assets.add({
             'path': path,
             'sha256': null,
             'bytes': entry['bytes'] ?? 0,
-            'width': width,
-            'height': height,
+            'width': actualWidth,
+            'height': actualHeight,
             'mediaType': 'image/png',
           });
         }
@@ -140,9 +160,24 @@ extension RenderPoolRepository on StudyRepository {
         '存在视点不完整的帧：$sequence',
       );
     }
+    check(packedKinds.length == 1, '目录中混有普通图片和已拼 SBS 图片，请分开选择素材目录');
+    final packed = packedKinds.single;
+    if (packed) {
+      definition['name'] = '双目真实素材 · 每人随机帧与视点';
+      definition['presentation'] = {
+        ...?definition['presentation'] as Map<String, dynamic>?,
+        'stereo': {
+          'input': 'sbs',
+          'layout': 'full_sbs',
+          'uiDisparity': 0,
+          'pointerMapping': 'screen',
+        },
+      };
+      (definition['metadata'] as Map)['sourceAdapter'] = 'sbs-renders@1';
+    }
     definition['items'] = items;
     definition['studyId'] =
-        'render-pool-${digestJson(assets).substring(0, 24)}';
+        '${packed ? 'sbs' : 'render'}-pool-${digestJson(assets).substring(0, 24)}';
     final existing = (await drafts())
         .where((d) => d.id == definition['studyId'])
         .firstOrNull;

@@ -370,7 +370,7 @@ extension V2Repository on StudyRepository {
         'assets': assets,
         'materials': 'external@1',
         'implementations': {
-          'method': d.stereo == null ? '2afc@1' : '2afc-stereo@1',
+          'method': d.methodVersion,
           'scheduler': d.schedulerVersion,
           'quality': 'basic-quality@1',
           'analysis': d.profile == null
@@ -616,6 +616,7 @@ extension V2Repository on StudyRepository {
         ],
         if (e.definition!.stereo != null) ...[
           'stereo_layout',
+          'stereo_input',
           'ui_disparity',
           'a_right_sha256',
           'b_right_sha256',
@@ -664,9 +665,10 @@ extension V2Repository on StudyRepository {
           ],
           if (e.definition!.stereo != null) ...[
             e.definition!.stereo!['layout'],
+            e.definition!.stereo!['input'] ?? 'separate',
             e.definition!.stereo!['uiDisparity'],
-            s.materialHashes[c.aRight],
-            s.materialHashes[c.bRight],
+            s.materialHashes[e.definition!.packedStereo ? c.gt : c.aRight],
+            s.materialHashes[e.definition!.packedStereo ? c.render : c.bRight],
           ],
         ]);
       }

@@ -74,7 +74,7 @@ my-study/
 | `answer` | 否 | 有标准答案时填 `a` 或 `b`；控制题必须填写 |
 | `group` | 否 | 分组标签，可以是任意场景、内容类别或条件名称 |
 | `metadata` | 否 | 业务元数据，例如视点、帧号、算法名或压缩参数 |
-| `aRight`、`bRight` | 3D 必填 | `a/b` 为左眼；这两个字段为同一刺激对应的右眼图片路径 |
+| `aRight`、`bRight` | 分图 3D 必填 | 分图模式下 `a/b` 为左眼，这两个字段为对应右眼；已拼 SBS 模式无需填写 |
 
 `a`、`b` 是素材身份，**不表示先后顺序、真实/渲染、好/坏或对/错**。即使 b 先出现，`answer: "a"` 的含义仍然是 a 对应的素材正确。界面向受试者显示“第一幅 / 第二幅”，不暴露文件名、标准答案或来源标签。
 
@@ -144,9 +144,11 @@ Python 工具检查字段、路径、文件存在性和非空性；不执行完�
 
 正式界面不提供跳题、答题超时、默认选择、回看或每题正确率。中断后保留记录，恢复时从当前题开头重播。A/B 仍顺序播放，双眼可用 SBS 同时显示。
 
-可选 `presentation.stereo={layout:"full_sbs",uiDisparity:0,pointerMapping:"screen"}` 开启双眼。用户确认设备使用 Full SBS，新配置默认 full_sbs，既有显式 half_sbs 继续兼容；UI 双眼总水平视差为 -64～64 逻辑像素。pointerMapping 为 screen（整屏连续）或 per_eye（普通屏幕分半调试）。两眼 UI 和软件指针同步，图片阶段隐藏所有鼠标。立体实现为 `2afc-stereo@1`。
+可选 `presentation.stereo={input:"sbs",layout:"full_sbs",uiDisparity:0,pointerMapping:"screen"}` 开启已拼双眼输入：每个 `a/b` 文件的左、右半幅分别对应两眼，图片宽度须为偶数。`input` 省略或为 `separate` 时使用原四路径规则，必须提供 `aRight/bRight`，旧定义不补写 input。用户确认设备使用 Full SBS，新配置默认 full_sbs，既有显式 half_sbs 继续兼容；UI 双眼总水平视差为 -64～64 逻辑像素。pointerMapping 为 screen（整屏连续）或 per_eye（普通屏幕分半调试）。两眼 UI 和软件指针同步，图片阶段隐藏所有鼠标。分图实现为 `2afc-stereo@1`，已拼 SBS 为 `2afc-sbs@1`。
 
 可选 `presentation.patch={width:512,height:320,distribution:"center_triangular"}` 开启裁剪。width、height 为正整数原图像素，可独立设置宽高比，面积上限 4000 万像素；发布前检查不能超过任何候选图，预览也检查越界。裁剪结果按自身宽高比等比适应显示区域。先完成帧/视点和次序排程，再用独立 PRNG 抽取中心偏重三角分布位置，每题四张图及重复轮次共享区域。会话 trial.patch 保存 x/y/width/height 像素矩形；像素配置使用 `2afc-schedule@4`，旧面积配置 area（0.001～1）及 `2afc-schedule@3` 继续沿用原平方根算法，不能混用两种配置。恢复与导入校验区域，CSV 导出实际矩形、种子及右眼指纹。省略字段关闭，不向旧定义补写默认值。详见 [操作与完整示例](stereo-and-patch.md)。
+
+已拼 SBS 使用 `2afc-schedule@5`；Patch 的尺寸上限和随机坐标都按单眼（文件宽度的一半）计算。右眼源矩形只在 x 上增加单眼宽度，y/width/height 与左眼一致。trial.patch 保存单眼局部坐标，呈现事件 `viewport.eyeSourceRects` 保存两眼实际源矩形。CSV 的 `stereo_input` 区分 `sbs/separate`，已拼模式下右眼指纹与对应完整文件指纹相同。旧排程、定义、素材指纹和会话保持原合同。
 
 ### 排程
 

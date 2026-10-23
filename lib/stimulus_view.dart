@@ -6,21 +6,40 @@ import 'package:flutter/rendering.dart';
 class StimulusView extends StatelessWidget {
   final ui.Image image;
   final Map<String, dynamic>? patch;
-  const StimulusView({super.key, required this.image, this.patch});
-  static Rect sourceRect(ui.Image image, Map<String, dynamic>? patch) =>
-      patch == null
-      ? Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble())
-      : Rect.fromLTWH(
-          (patch['x'] as num).toDouble(),
-          (patch['y'] as num).toDouble(),
-          (patch['width'] as num).toDouble(),
-          (patch['height'] as num).toDouble(),
-        );
+
+  /// For packed SBS, 0/1 selects a half. Patch coordinates are local to one eye.
+  final int? packedEye;
+  const StimulusView({
+    super.key,
+    required this.image,
+    this.patch,
+    this.packedEye,
+  });
+  static Rect sourceRect(
+    ui.Image image,
+    Map<String, dynamic>? patch, {
+    int? packedEye,
+  }) {
+    final width = packedEye == null ? image.width.toDouble() : image.width / 2;
+    final offset = (packedEye ?? 0) * width;
+    return patch == null
+        ? Rect.fromLTWH(offset, 0, width, image.height.toDouble())
+        : Rect.fromLTWH(
+            offset + (patch['x'] as num).toDouble(),
+            (patch['y'] as num).toDouble(),
+            (patch['width'] as num).toDouble(),
+            (patch['height'] as num).toDouble(),
+          );
+  }
+
   @override
   Widget build(BuildContext context) => CustomPaint(
     key: const Key('stimulus-image'),
     size: Size.infinite,
-    painter: _StimulusPainter(image, sourceRect(image, patch)),
+    painter: _StimulusPainter(
+      image,
+      sourceRect(image, patch, packedEye: packedEye),
+    ),
   );
 }
 

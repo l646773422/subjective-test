@@ -126,6 +126,7 @@ class StudyDefinition {
     if (presentation.containsKey('stereo')) {
       final stereo = jsonMap(presentation['stereo'], 'presentation.stereo');
       keys(stereo, [
+        'input',
         'layout',
         'uiDisparity',
         'pointerMapping',
@@ -133,6 +134,11 @@ class StudyDefinition {
       stereo.putIfAbsent('layout', () => 'full_sbs');
       stereo.putIfAbsent('uiDisparity', () => 0);
       stereo.putIfAbsent('pointerMapping', () => 'screen');
+      check(
+        !stereo.containsKey('input') ||
+            ['separate', 'sbs'].contains(stereo['input']),
+        '双眼素材格式应为 separate 或 sbs',
+      );
       check(
         ['screen', 'per_eye'].contains(stereo['pointerMapping']),
         '鼠标坐标映射无效',
@@ -380,11 +386,16 @@ class StudyDefinition {
       assetPath(item['b']);
       for (final key in ['aRight', 'bRight']) {
         check(
-          draft || presentation['stereo'] == null || nonEmpty(item[key]),
+          draft ||
+              presentation['stereo'] == null ||
+              (presentation['stereo'] as Map)['input'] == 'sbs' ||
+              nonEmpty(item[key]),
           '${item['id']} 缺少右眼图片 $key',
         );
         if (item.containsKey(key) ||
-            (!draft && presentation['stereo'] != null)) {
+            (!draft &&
+                presentation['stereo'] != null &&
+                (presentation['stereo'] as Map)['input'] != 'sbs')) {
           assetPath(item[key]);
         }
       }
@@ -503,7 +514,15 @@ class StudyDefinition {
   Map<String, dynamic>? get patch => presentation['patch'] == null
       ? null
       : jsonMap(presentation['patch'], 'patch');
-  String get schedulerVersion => patch != null
+  bool get packedStereo => stereo?['input'] == 'sbs';
+  String get methodVersion => packedStereo
+      ? '2afc-sbs@1'
+      : stereo == null
+      ? '2afc@1'
+      : '2afc-stereo@1';
+  String get schedulerVersion => packedStereo
+      ? '2afc-schedule@5'
+      : patch != null
       ? patch!.containsKey('width')
             ? '2afc-schedule@4'
             : '2afc-schedule@3'

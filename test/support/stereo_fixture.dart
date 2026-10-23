@@ -11,6 +11,7 @@ Future<StudyDraft> stereoFixture(
   bool stereo = true,
   bool patch = true,
   bool legacyArea = false,
+  bool packed = false,
   String layout = 'full_sbs',
 }) async {
   await source.create(recursive: true);
@@ -26,13 +27,13 @@ Future<StudyDraft> stereoFixture(
       for (final key in [
         'a',
         'b',
-        if (stereo) ...['aRight', 'bRight'],
+        if (stereo && !packed) ...['aRight', 'bRight'],
       ]) {
-        final right = key.endsWith('Right');
-        final image = img.Image(width: 320, height: 180);
+        final image = img.Image(width: packed ? 640 : 320, height: 180);
         for (int y = 0; y < 180; y++) {
-          for (int x = 0; x < 320; x++) {
-            final px = x + (right ? 6 : 0);
+          for (int x = 0; x < image.width; x++) {
+            final right = key.endsWith('Right') || (packed && x >= 320);
+            final px = x % 320 + (right ? 6 : 0);
             final square = px >= 100 && px < 220 && y >= 40 && y < 140;
             image.setPixelRgba(
               x,
@@ -66,7 +67,12 @@ Future<StudyDraft> stereoFixture(
       'presentation': {
         'promptMs': 50,
         'imageMs': 150,
-        if (stereo) 'stereo': {'layout': layout, 'uiDisparity': 12},
+        if (stereo)
+          'stereo': {
+            if (packed) 'input': 'sbs',
+            'layout': layout,
+            'uiDisparity': 12,
+          },
         if (patch)
           'patch': legacyArea ? {'area': 0.25} : {'width': 128, 'height': 96},
       },

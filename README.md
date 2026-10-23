@@ -35,7 +35,7 @@ Windows / Android 离线主观评价工作台，当前支持静态图片顺序�
 
 `a/b` 是素材身份，与屏幕先后位置无关。有标准答案时填写 `answer: "a"` 或 `"b"` 并选择准确率指标；无标准答案时使用逐题选择比例。练习和控制题均可选，重复次数只影响正式题。默认完整显示 2D 图片，允许不同尺寸；启用 3D 或 Patch 后，每题全部图片需同尺寸。
 
-“开始测试”页可直接开启 **3D 双眼 SBS** 和 **随机 Patch**，高级草稿也保留对应设置。3D 默认 Full SBS，用 `a/b` 指定左眼、`aRight/bRight` 指定对应右眼，A、B 仍先后播放；图片阶段隐藏鼠标，作答 UI 和指针在双眼绘制。Patch 直接填写原图像素宽、高，中心偏重抽样，A/B、双眼与重复题共用同一矩形，恢复不重抽。旧面积配置继续兼容。具体配置、SBS 比例和连续鼠标操作见 [双眼与 Patch](docs/stereo-and-patch.md)。
+“开始测试”页可直接开启 **3D 双目显示** 和 **随机 Patch**，高级草稿也保留对应设置。3D 默认 Full SBS，既支持 `a/b` 各自是一张已拼好的 SBS 图，也支持 `a/b` 为左眼、`aRight/bRight` 为对应右眼的分图方式。A、B 仍先后播放；图片阶段隐藏鼠标，作答 UI 和指针在双眼绘制。Patch 填写单眼原图像素宽、高，中心偏重抽样；已拼 SBS 从左右半幅的相同位置分别截取，再并排显示。A/B、双眼与重复题共用裁剪坐标，恢复不重抽。旧面积配置继续兼容。具体配置见 [双眼与 Patch](docs/stereo-and-patch.md)。
 
 详细字段、默认值、操作与导出合同见 [数据与操作规范 v2](docs/study-data-v2.md)。完整样例在 [examples/study-v2](examples/study-v2/study.json)。来源差异在外部适配器中解决，平台不识别训练目录、固定场景或相机映射。
 
@@ -50,7 +50,7 @@ python tools/study_data.py migrate demo-data/demo.study.zip validation/migrated-
 
 ## 真实感模板与旧数据
 
-Windows 首页“开始测试”直接选择包含四个 `*_renders` 序列的上级目录。软件读取 `frame*/test/primitive/{gt,renders}` 的全部候选图片，不复制原图。每位参与者独立随机抽帧和视点，默认 VRU 各 4 对、Dance / Show 各 6 对，可在同页修改；每对两种次序各一次，默认共 40 次判断。恢复会话沿用已抽出的题目。当前没有练习和控制素材，自动载入版本明确标记为演练。
+Windows 首页“开始测试”选择包含 `*_renders` 序列的上级目录，允许只含一个序列。软件读取 `frame*/test/primitive/{gt,renders}` 或 `frame*/test/{gt,renders}` 的全部候选图片，不复制原图。新裸眼目录中的敦煌素材为 1,500 组已拼 SBS，读取后自动开启对应 3D 模式。每位参与者独立随机抽帧和视点，默认每个 VRU 序列抽 4 组、Dance / Show 各 6 组，可在同页修改；同一组交换顺序各答一次。当前没有练习和控制素材，自动载入版本明确标记为演练。
 
 新真实感模板使用每人抽样与 profile 2，保留登记字段、独立练习和控制要求。旧 profile 1 的固定单帧题库、逐图人数条件和统计实现继续兼容。具体抽样规则、测试状态和原目录操作见 [Windows 真实素材流程](docs/real-materials-workflow.md)。本轮先完成 Windows 联调，安卓目录读取和最终安装包发布后置。
 

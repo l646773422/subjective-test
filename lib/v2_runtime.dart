@@ -118,7 +118,7 @@ List<Trial> buildV2Schedule(Experiment e, int seed) {
         patch: patches.putIfAbsent(t.caseId, () {
           final c = e.caseById(t.caseId);
           return sampleConfiguredPatch(
-            c.width,
+            d.packedStereo ? c.width ~/ 2 : c.width,
             c.height,
             d.patch!,
             patchRandom,

@@ -105,7 +105,8 @@ class SessionRunner extends ChangeNotifier {
       final paths = [
         first,
         second,
-        if (experiment.definition?.stereo != null) ...[
+        if (experiment.definition?.stereo != null &&
+            !experiment.definition!.packedStereo) ...[
           trial.capturedFirst ? c.aRight! : c.bRight!,
           trial.capturedFirst ? c.bRight! : c.aRight!,
         ],
@@ -461,9 +462,13 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
             builder: (context, eye) => LayoutBuilder(
               builder: (context, bounds) {
                 final ratio = MediaQuery.devicePixelRatioOf(context);
+                final packed =
+                    runner.experiment.definition?.packedStereo == true;
                 final shown = stage == StudyStage.imageB
-                    ? (eye == 1 ? runner.imageBRight : runner.imageB)
-                    : (eye == 1 ? runner.imageARight : runner.imageA);
+                    ? (eye == 1 && !packed ? runner.imageBRight : runner.imageB)
+                    : (eye == 1 && !packed
+                          ? runner.imageARight
+                          : runner.imageA);
                 final patch = runner.session.complete
                     ? null
                     : runner.trial.patch;
@@ -471,7 +476,11 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
                     ? Size.zero
                     : applyBoxFit(
                         BoxFit.contain,
-                        StimulusView.sourceRect(shown, patch).size,
+                        StimulusView.sourceRect(
+                          shown,
+                          patch,
+                          packedEye: packed ? eye : null,
+                        ).size,
                         bounds.biggest,
                       ).destination;
                 if (eye == 0 && !_leaving) {
@@ -491,6 +500,23 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
                       if (runner.experiment.definition?.stereo != null)
                         'stereo': runner.experiment.definition!.stereo,
                       'patch': ?patch,
+                      if (packed && shown != null)
+                        'eyeSourceRects': [
+                          for (final side in [0, 1])
+                            (() {
+                              final rect = StimulusView.sourceRect(
+                                shown,
+                                patch,
+                                packedEye: side,
+                              );
+                              return {
+                                'x': rect.left,
+                                'y': rect.top,
+                                'width': rect.width,
+                                'height': rect.height,
+                              };
+                            })(),
+                        ],
                     });
                   });
                 }
@@ -531,7 +557,11 @@ class TestScreenState extends State<TestScreen> with WidgetsBindingObserver {
                     ),
                   ),
                   StudyStage.imageA || StudyStage.imageB => SizedBox.expand(
-                    child: StimulusView(image: shown!, patch: patch),
+                    child: StimulusView(
+                      image: shown!,
+                      patch: patch,
+                      packedEye: packed ? eye : null,
+                    ),
                   ),
                   StudyStage.answer => Center(
                     child: SingleChildScrollView(

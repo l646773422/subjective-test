@@ -6,7 +6,12 @@ class QuickTestSettings {
   final Map<String, int> available = {}, counts = {};
   bool patchEnabled, stereoEnabled;
   Map<String, dynamic>? legacyPatch;
-  String patchWidth, patchHeight, layout, pointerMapping, disparity;
+  String patchWidth,
+      patchHeight,
+      layout,
+      pointerMapping,
+      disparity,
+      stereoInput;
   int repetitions;
   static const ungrouped = '未分组';
   QuickTestSettings(this.base)
@@ -16,6 +21,7 @@ class QuickTestSettings {
       patchWidth = '${base.patch?['width'] ?? 512}',
       patchHeight = '${base.patch?['height'] ?? 512}',
       layout = base.stereo?['layout'] as String? ?? 'full_sbs',
+      stereoInput = base.stereo?['input'] as String? ?? 'separate',
       pointerMapping = base.stereo?['pointerMapping'] as String? ?? 'screen',
       disparity = '${base.stereo?['uiDisparity'] ?? 0}',
       repetitions = base.schedule['repetitions'] as int {
@@ -43,8 +49,8 @@ class QuickTestSettings {
         return '${sequenceLabels[entry.key] ?? entry.key}：抽样数量需为 1～${entry.value} 的整数';
       }
     }
-    if (stereoEnabled && stereoMissing > 0) {
-      return '当前目录有 $stereoMissing 对素材尚未指定右眼图片。请关闭 3D，或读取包含左右眼配对描述 study.json 的目录。';
+    if (stereoEnabled && stereoInput == 'separate' && stereoMissing > 0) {
+      return '当前目录有 $stereoMissing 对素材尚未指定右眼图片。如果图片已拼好，请将素材格式选为“左右眼已拼在一张图”；否则需在 study.json 中指定左右眼路径。';
     }
     if (patchEnabled && legacyPatch == null) {
       final w = int.tryParse(patchWidth), h = int.tryParse(patchHeight);
@@ -105,6 +111,8 @@ class QuickTestSettings {
     }
     if (stereoEnabled) {
       presentation['stereo'] = {
+        if (stereoInput == 'sbs' || base.stereo?.containsKey('input') == true)
+          'input': stereoInput,
         'layout': layout,
         'pointerMapping': pointerMapping,
         'uiDisparity': double.parse(disparity),

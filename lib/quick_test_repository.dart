@@ -52,7 +52,7 @@ extension QuickTestRepository on StudyRepository {
                 entry is Directory &&
                 p.basename(entry.path).endsWith('_renders'),
           );
-      check(hasRenders, '未找到 *_renders 子目录或 study.json。请选择四个序列共同的上一级目录。');
+      check(hasRenders, '未找到 *_renders 子目录或 study.json。请选择序列所在的上一级目录。');
       final draft = await loadRenderDirectory(directory);
       await rememberQuickDraft(draft);
       return draft;

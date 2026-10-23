@@ -138,7 +138,7 @@ class WorkbenchState extends State<Workbench> {
       draft = await repo!.createRenderPool(tree);
     } else {
       final path = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: '选择包含四个 *_renders 序列的目录',
+        dialogTitle: '选择包含 *_renders 序列的目录',
       );
       if (path == null) return;
       draft = await repo!.loadRenderDirectory(Directory(path));

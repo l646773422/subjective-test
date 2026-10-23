@@ -10,6 +10,16 @@ import 'domain.dart';
 import 'study_templates.dart';
 import 'stimulus_view.dart';
 
+String _assetLabel(String key, {bool packed = false}) =>
+    packed && ['a', 'b'].contains(key)
+    ? '${key.toUpperCase()} 已拼 SBS'
+    : {
+        'a': 'A 左眼 / 2D',
+        'b': 'B 左眼 / 2D',
+        'aRight': 'A 右眼',
+        'bRight': 'B 右眼',
+      }[key]!;
+
 class DraftEditor extends StatefulWidget {
   final StudyRepository repository;
   final StudyDraft draft;
@@ -98,6 +108,8 @@ class _DraftEditorState extends State<DraftEditor> {
     setState(() => busy = true);
     try {
       Map<String, dynamic> item;
+      final packed =
+          (source['presentation'] as Map)['stereo']?['input'] == 'sbs';
       if (index == null) {
         item = {
           'id': 'pair-${uuid().substring(0, 8)}',
@@ -107,14 +119,14 @@ class _DraftEditorState extends State<DraftEditor> {
         for (final key in [
           'a',
           'b',
-          if ((source['presentation'] as Map)['stereo'] != null) ...[
+          if ((source['presentation'] as Map)['stereo'] != null &&
+              (source['presentation'] as Map)['stereo']['input'] != 'sbs') ...[
             'aRight',
             'bRight',
           ],
         ]) {
           final picked = await FilePicker.platform.pickFiles(
-            dialogTitle:
-                '选择 ${{'a': 'A 左眼 / 2D', 'b': 'B 左眼 / 2D', 'aRight': 'A 右眼', 'bRight': 'B 右眼'}[key]}',
+            dialogTitle: '选择 ${_assetLabel(key, packed: packed)}',
             type: FileType.image,
             withData: true,
           );
@@ -133,7 +145,10 @@ class _DraftEditorState extends State<DraftEditor> {
         context: context,
         builder: (_) => ItemDialog(
           item: item,
-          stereo: (source['presentation'] as Map)['stereo'] != null,
+          packed: packed,
+          stereo:
+              (source['presentation'] as Map)['stereo'] != null &&
+              (source['presentation'] as Map)['stereo']['input'] != 'sbs',
         ),
       );
       if (edited == null) return;
@@ -555,7 +570,7 @@ class _DraftEditorState extends State<DraftEditor> {
                           key: const Key('stereo-enabled'),
                           title: const Text('3D 双眼 SBS'),
                           subtitle: const Text(
-                            'A、B 仍先后播放；每幅同时显示左右眼。发布前需补齐每题双眼路径。',
+                            'A、B 仍先后播放；每幅可使用已拼 SBS 图片或分开的左右眼图片。',
                           ),
                           value: p['stereo'] != null,
                           onChanged: busy
@@ -578,6 +593,18 @@ class _DraftEditorState extends State<DraftEditor> {
                             spacing: 14,
                             runSpacing: 14,
                             children: [
+                              choice<String>(
+                                '3D 素材如何存放',
+                                (p['stereo'] as Map)['input'] as String? ??
+                                    'separate',
+                                ['sbs', 'separate'],
+                                (v) {
+                                  (p['stereo'] as Map)['input'] = v;
+                                  changed();
+                                },
+                                labelFor: (v) =>
+                                    v == 'sbs' ? '左右眼已拼在一张图' : '左右眼分别存成两张图',
+                              ),
                               choice<String>(
                                 'SBS 输出格式',
                                 (p['stereo'] as Map)['layout'] as String,
@@ -848,8 +875,13 @@ class _DraftEditorState extends State<DraftEditor> {
 
 class ItemDialog extends StatefulWidget {
   final Map<String, dynamic> item;
-  final bool stereo;
-  const ItemDialog({super.key, required this.item, this.stereo = false});
+  final bool stereo, packed;
+  const ItemDialog({
+    super.key,
+    required this.item,
+    this.stereo = false,
+    this.packed = false,
+  });
   @override
   State<ItemDialog> createState() => _ItemDialogState();
 }
@@ -910,7 +942,7 @@ class _ItemDialogState extends State<ItemDialog> {
                   controller: entry.value,
                   decoration: InputDecoration(
                     labelText:
-                        '${{'a': 'A 左眼 / 2D', 'b': 'B 左眼 / 2D', 'aRight': 'A 右眼', 'bRight': 'B 右眼'}[entry.key]} · 素材目录相对路径',
+                        '${_assetLabel(entry.key, packed: widget.packed)} · 素材目录相对路径',
                   ),
                 ),
               ),
@@ -1033,7 +1065,11 @@ class _DraftPreviewState extends State<DraftPreview> {
       for (final key in [
         'a',
         'b',
-        if (widget.presentation['stereo'] != null) ...['aRight', 'bRight'],
+        if (widget.presentation['stereo'] != null &&
+            widget.presentation['stereo']['input'] != 'sbs') ...[
+          'aRight',
+          'bRight',
+        ],
       ]) {
         check(widget.item[key] is String, '请先补齐左右眼图片路径');
         final codec = await ui.instantiateImageCodec(
@@ -1056,6 +1092,8 @@ class _DraftPreviewState extends State<DraftPreview> {
         images[key] = image;
       }
       final first = images['a']!;
+      final packed = widget.presentation['stereo']?['input'] == 'sbs';
+      check(!packed || first.width.isEven, 'SBS 图片宽度必须为偶数');
       if (widget.presentation['patch'] != null ||
           widget.presentation['stereo'] != null) {
         check(
@@ -1068,7 +1106,7 @@ class _DraftPreviewState extends State<DraftPreview> {
       }
       if (widget.presentation['patch'] != null) {
         patch = sampleConfiguredPatch(
-          first.width,
+          packed ? first.width ~/ 2 : first.width,
           first.height,
           Map<String, dynamic>.from(widget.presentation['patch'] as Map),
           StableRandom(DateTime.now().microsecondsSinceEpoch),
@@ -1129,9 +1167,20 @@ class _DraftPreviewState extends State<DraftPreview> {
                   child: StimulusView(
                     image:
                         images[stage == 1
-                            ? (eye == 0 ? 'a' : 'aRight')
-                            : (eye == 0 ? 'b' : 'bRight')]!,
+                            ? (eye == 0 ||
+                                      widget.presentation['stereo']?['input'] ==
+                                          'sbs'
+                                  ? 'a'
+                                  : 'aRight')
+                            : (eye == 0 ||
+                                      widget.presentation['stereo']?['input'] ==
+                                          'sbs'
+                                  ? 'b'
+                                  : 'bRight')]!,
                     patch: patch,
+                    packedEye: widget.presentation['stereo']?['input'] == 'sbs'
+                        ? eye
+                        : null,
                   ),
                 )
               : Center(

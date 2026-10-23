@@ -146,7 +146,7 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
   Future<void> chooseDirectory() async {
     if (locked) return;
     final selected = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: '选择测试素材目录：四个 renders 的上一级，或含 study.json 的目录',
+      dialogTitle: '选择测试素材目录：renders 的上一级，或含 study.json 的目录',
     );
     if (selected == null || !mounted) return;
     directory.text = selected;
@@ -252,7 +252,7 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
             enabled: !locked,
             decoration: InputDecoration(
               labelText: '素材目录',
-              hintText: '选择四个 *_renders 的共同上级目录，或含 study.json 的目录',
+              hintText: '选择 *_renders 的上级目录，或含 study.json 的目录',
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
                 key: const Key('quick-browse'),
@@ -432,13 +432,13 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
               runSpacing: 12,
               children: [
                 number(
-                  '宽 / 原图像素',
+                  model.stereoEnabled ? '宽 / 单眼像素' : '宽 / 原图像素',
                   width,
                   'quick-patch-width',
                   (text) => model.patchWidth = text,
                 ),
                 number(
-                  '高 / 原图像素',
+                  model.stereoEnabled ? '高 / 单眼像素' : '高 / 原图像素',
                   height,
                   'quick-patch-height',
                   (text) => model.patchHeight = text,
@@ -446,20 +446,24 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
               ],
             ),
           if (model.patchEnabled)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
-                '截取后等比适应显示区域；尺寸不能超过原图。',
-                style: TextStyle(fontSize: 12, color: Color(0xff67796e)),
+                model.stereoEnabled && model.stereoInput == 'sbs'
+                    ? '宽高按单眼像素计算，左右半幅分别截取相同位置，再并排显示。'
+                    : '截取后等比适应显示区域；尺寸不能超过原图。',
+                style: const TextStyle(fontSize: 12, color: Color(0xff67796e)),
               ),
             ),
           const Divider(height: 28),
           SwitchListTile(
             key: const Key('quick-stereo-enabled'),
             contentPadding: EdgeInsets.zero,
-            title: const Text('3D 双眼 SBS'),
+            title: const Text('3D 双目显示'),
             subtitle: Text(
-              model.stereoMissing == 0
+              model.stereoInput == 'sbs'
+                  ? '图片已含左右眼；按钮和鼠标也按双目显示。'
+                  : model.stereoMissing == 0
                   ? '已提供左右眼配对图片。'
                   : '当前素材未提供完整左右眼配对，可先使用 2D。',
             ),
@@ -472,6 +476,29 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                     failure = null;
                   }),
           ),
+          if (model.stereoEnabled) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: ValueKey('quick-stereo-input-${model.stereoInput}'),
+              initialValue: model.stereoInput,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: '3D 素材如何存放',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(value: 'sbs', child: Text('左右眼已拼在一张图（SBS）')),
+                DropdownMenuItem(value: 'separate', child: Text('左右眼分别存成两张图')),
+              ],
+              onChanged: locked
+                  ? null
+                  : (value) => setState(() {
+                      model.stereoInput = value!;
+                      failure = null;
+                    }),
+            ),
+          ],
           if (model.stereoEnabled)
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
@@ -564,6 +591,8 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                         : '2D',
                   ),
                   if (model.stereoEnabled)
+                    chip(model.stereoInput == 'sbs' ? '素材：已拼 SBS' : '素材：左右眼分图'),
+                  if (model.stereoEnabled)
                     chip(
                       'UI 视差 ${model.disparity} · ${model.pointerMapping == 'screen' ? '整屏鼠标' : '半屏调试鼠标'}',
                     ),
@@ -572,7 +601,7 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                         ? '整图'
                         : model.legacyPatch != null
                         ? 'Patch · 旧面积配置'
-                        : 'Patch ${model.patchWidth} × ${model.patchHeight} 像素',
+                        : '${model.stereoEnabled ? '每眼 ' : ''}Patch ${model.patchWidth} × ${model.patchHeight} 像素',
                   ),
                   chip(
                     '提示 ${model.base.presentation['promptMs']} ms · 图片 ${model.base.presentation['imageMs']} ms',

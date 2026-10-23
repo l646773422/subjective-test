@@ -180,7 +180,7 @@ class Experiment {
       'implementations',
     );
     final expected = {
-      'method': definition.stereo == null ? '2afc@1' : '2afc-stereo@1',
+      'method': definition.methodVersion,
       'scheduler': definition.schedulerVersion,
       'quality': 'basic-quality@1',
       'analysis': definition.profile == null
@@ -230,11 +230,18 @@ class Experiment {
     final cases = definition.items.map((item) {
       final a = byPath[item['a']]!, b = byPath[item['b']]!;
       final patch = definition.patch;
+      final eyeWidth = definition.packedStereo
+          ? (a['width'] as int) ~/ 2
+          : a['width'] as int;
+      check(
+        !definition.packedStereo || (a['width'] as int).isEven,
+        '${item['id']} 的 SBS 图片宽度必须是偶数，以便等分左右眼',
+      );
       if (patch != null && patch.containsKey('width')) {
         check(
-          (patch['width'] as int) <= (a['width'] as int) &&
+          (patch['width'] as int) <= eyeWidth &&
               (patch['height'] as int) <= (a['height'] as int),
-          '${item['id']} 的 Patch ${patch['width']}×${patch['height']} 超过原图 ${a['width']}×${a['height']}',
+          '${item['id']} 的 Patch ${patch['width']}×${patch['height']} 超过${definition.packedStereo ? '单眼' : '原图'} $eyeWidth×${a['height']}',
         );
       }
       if (definition.stereo != null || definition.patch != null) {

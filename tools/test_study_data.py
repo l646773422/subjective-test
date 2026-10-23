@@ -22,6 +22,16 @@ def minimal():
 
 
 class StudyDataTests(unittest.TestCase):
+    def test_packed_sbs_needs_only_two_alternatives(self):
+        source = minimal()
+        source['presentation'] = {'stereo': {'input': 'sbs'}, 'patch': {'width': 512, 'height': 320}}
+        effective = normalize(source)
+        self.assertEqual(effective['presentation']['stereo']['input'], 'sbs')
+        self.assertNotIn('aRight', effective['items'][0])
+        source['presentation']['stereo']['input'] = 'guess'
+        with self.assertRaisesRegex(StudyError, 'invalid stereo input'):
+            normalize(source)
+
     def test_stereo_patch_contract_and_required_right_eyes(self):
         source = minimal()
         source['presentation'] = {'stereo': {}, 'patch': {'area': .25}}

@@ -108,7 +108,8 @@ def normalize(study, root=None):
     require(presentation["mode"] == "sequential", "only sequential image presentation is supported")
     if "stereo" in presentation:
         stereo = presentation["stereo"]
-        object_keys(stereo, ("layout", "uiDisparity", "pointerMapping"), "presentation.stereo")
+        object_keys(stereo, ("input", "layout", "uiDisparity", "pointerMapping"), "presentation.stereo")
+        require(stereo.get("input", "separate") in ("separate", "sbs"), "invalid stereo input")
         stereo.setdefault("layout", "full_sbs")
         stereo.setdefault("uiDisparity", 0)
         stereo.setdefault("pointerMapping", "screen")
@@ -201,7 +202,7 @@ def normalize(study, root=None):
         if "answer" in item:
             require(item["answer"] in ("a", "b"), f"{location}.answer must be a or b")
         require(item["role"] != "control" or "answer" in item, f"{location}: control needs an answer")
-        for alternative in ("a", "b", *(["aRight", "bRight"] if "stereo" in presentation else
+        for alternative in ("a", "b", *(["aRight", "bRight"] if "stereo" in presentation and presentation["stereo"].get("input") != "sbs" else
                 [k for k in ("aRight", "bRight") if k in item])):
             asset_path(item.get(alternative))
             files.add(item[alternative])
