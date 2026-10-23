@@ -21,8 +21,11 @@ Future<void> main() => integrationDriver(
         '${root.path}/${entry.key}.png',
       ).writeAsBytes(base64Decode(entry.value as String), flush: true);
     }
-    report['testTimingMode'] =
-        'default 2s/3s timing and >5s answer wait; accelerated schema-1 46-trial and schema-2 generic flows';
+    report.putIfAbsent(
+      'testTimingMode',
+      () =>
+          'default 2s/3s timing and >5s answer wait; accelerated schema-1 46-trial and schema-2 generic flows',
+    );
     await File('${root.path}/report.json').writeAsString(
       const JsonEncoder.withIndent('  ').convert(report),
       flush: true,

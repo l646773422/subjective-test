@@ -4,7 +4,7 @@ Windows / Android 离线主观评价工作台，当前支持静态图片顺序�
 
 ## 快速体验
 
-1. Windows 解压 `dist/subjective-study-windows-x64.zip` 并运行 `subjective_study.exe`，保留同目录 DLL 和 data；Android 安装 `dist/subjective-study-android.apk`。
+1. 开发阶段直接运行调试版：Windows 使用 `flutter run -d windows`，Android 使用 `flutter run -d <device-id>`。
 2. 点击“体验通用演示”。这是一个仅含一对图片的 v2 实验，无练习、控制或年龄要求。
 3. 点击“进入采集”，填写匿名参与者编号和观看条件，设备与观看距离可按需要记录。
 4. 每题先后显示两幅图片，随后强制选择第一幅或第二幅。默认提示 2 秒、图片 3 秒，作答不限时，无默认答案和回看。
@@ -70,7 +70,7 @@ Flutter 3.47.7 / Dart 3.13.5、Visual Studio 2022、JDK 17、Android SDK 36；�
 flutter pub get
 flutter analyze
 flutter test test
-python -m unittest discover -s tools -p test_study_data.py -v
+python -m unittest discover -s tools -p 'test_*.py' -v
 $env:STUDY_ARTIFACT_DIR="validation/v2-windows"
 flutter drive --driver=test_driver/driver.dart --target=integration_test/flow_test.dart -d windows
 $env:STUDY_ARTIFACT_DIR="validation/v2-android"
@@ -83,4 +83,4 @@ flutter build apk --release --target-platform android-arm64,android-x64
 
 Windows 插件链接受限时可运行 `tools/prepare_windows.ps1` 创建项目内 junction。`tools/build.ps1` 默认使用 `D:/tools/flutter`，路径可通过参数覆盖。两端构建按顺序执行，Android Release 使用内部调试签名。`tools/package.ps1` 整理 Release 产物及 SHA-256 清单到 dist。
 
-原 v1 验证见 [docs/validation.md](docs/validation.md)，本次验证见 [docs/validation-v2.md](docs/validation-v2.md)。
+原 v1 验证见 [docs/validation.md](docs/validation.md)，v2 验证见 [docs/validation-v2.md](docs/validation-v2.md)。四序列真实素材的结构检查、转换和调试流程见 [真实素材流程演练](docs/real-materials-workflow.md)。

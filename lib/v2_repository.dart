@@ -141,13 +141,13 @@ extension V2Repository on StudyRepository {
     if (await released.exists()) {
       throw const FormatException('发布目录请压缩为 ZIP 后导入，不能忽略 release.json');
     }
+    final definitionFile = File(p.join(source.path, 'study.json'));
+    check(
+      await definitionFile.exists(),
+      '所选目录缺少 study.json。请先将原始素材转换为标准实验目录，再导入。',
+    );
     final d = StudyDefinition.fromJson(
-      jsonMap(
-        jsonDecode(
-          await File(p.join(source.path, 'study.json')).readAsString(),
-        ),
-        'study',
-      ),
+      jsonMap(jsonDecode(await definitionFile.readAsString()), 'study'),
     );
     await initializeV2();
     final target = draftDir(d.studyId);

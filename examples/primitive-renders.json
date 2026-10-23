@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "sequences": [
+    {
+      "id": "VRU_gz",
+      "directory": "VRU_gz_0.004_1.0_renders",
+      "views": {"00000.png": 0, "00001.png": 10, "00002.png": 20, "00003.png": 30}
+    },
+    {
+      "id": "VRU_dg4",
+      "directory": "VRU_dg4_0.004_1.0_renders",
+      "views": {"00000.png": 0, "00001.png": 10, "00002.png": 20, "00003.png": 30}
+    },
+    {
+      "id": "Dance_Dunhuang_Pair_1080",
+      "directory": "Dance_Dunhuang_Pair_1080_0.001_1.0_renders",
+      "views": {"00000.png": 0, "00001.png": 10, "00002.png": 20, "00003.png": 30, "00004.png": 40, "00005.png": 50}
+    },
+    {
+      "id": "Show_Groups_4K",
+      "directory": "Show_Groups_4K_0.001_0.6_renders",
+      "views": {"00000.png": 0, "00001.png": 10, "00002.png": 20, "00003.png": 30, "00004.png": 40, "00005.png": 50}
+    }
+  ]
+}
