@@ -46,6 +46,14 @@ void main() {
       );
       await harness.until(
         tester,
+        () =>
+            find.text('高级实验管理').evaluate().isNotEmpty &&
+            !tester.state<WorkbenchState>(find.byType(Workbench)).busy,
+      );
+      await tester.tap(find.text('高级实验管理'));
+      await tester.pump();
+      await harness.until(
+        tester,
         () => harness.canPress(tester, const Key('go-sessions')),
       );
       await harness.capture(tester, repo, 'real-library');

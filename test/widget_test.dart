@@ -34,6 +34,10 @@ void main() {
       });
       await tester.pumpWidget(StudyApp(repository: EmptyRepository()));
       await tester.pumpAndSettle();
+      expect(find.byKey(const Key('quick-material-directory')), findsOneWidget);
+      expect(find.byKey(const Key('quick-load-materials')), findsOneWidget);
+      await tester.tap(find.text('高级实验管理'));
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('load-demo')), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

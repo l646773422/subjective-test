@@ -13,6 +13,7 @@ import 'study_templates.dart';
 part 'v2_repository.dart';
 part 'materials_repository.dart';
 part 'render_pool.dart';
+part 'quick_test_repository.dart';
 
 String uniqueId() =>
     '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}_${Random.secure().nextInt(0x7fffffff).toRadixString(36)}';

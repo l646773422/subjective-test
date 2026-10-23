@@ -183,6 +183,14 @@ void main() {
           child: StudyApp(repository: repo, testDurationMs: 30),
         ),
       );
+      if (Platform.isWindows) {
+        await until(
+          tester,
+          () => !tester.state<WorkbenchState>(find.byType(Workbench)).busy,
+        );
+        await tester.tap(find.text('高级实验管理'));
+        await tester.pump();
+      }
       await until(
         tester,
         () =>
@@ -284,6 +292,14 @@ void main() {
           child: StudyApp(repository: repo, testDurationMs: 30),
         ),
       );
+      if (Platform.isWindows) {
+        await until(
+          tester,
+          () => !tester.state<WorkbenchState>(find.byType(Workbench)).busy,
+        );
+        await tester.tap(find.text('高级实验管理'));
+        await tester.pump();
+      }
       await until(
         tester,
         () =>

@@ -10,6 +10,7 @@ import 'platform_bridge.dart';
 import 'legacy_participant.dart';
 import 'draft_editor.dart';
 import 'participant_dialog.dart';
+import 'quick_test_panel.dart';
 
 const workbenchInk = Color(0xff173e3a);
 
@@ -29,7 +30,7 @@ class WorkbenchState extends State<Workbench> {
   Experiment? active;
   StudyDraft? selectedDraft;
   String? selectedStudy, failure;
-  int page = 0;
+  int page = Platform.isWindows ? 3 : 0;
   bool busy = false;
   @override
   void initState() {
@@ -186,29 +187,69 @@ class WorkbenchState extends State<Workbench> {
     if (mounted) await perform(() => reload());
   }
 
-  Future<void> launch(StudySession session) async {
-    await perform(() async {
-      await repo!.verify(active!);
-      await repo!.verifySelection(
-        active!,
-        session.trials,
-        hashes: session.materialHashes,
-      );
-      if (!mounted) return;
-      await Navigator.push(
-        context,
-        MaterialPageRoute<void>(
-          builder: (_) => TestScreen(
-            repository: repo!,
-            experiment: active!,
-            session: session,
-            testDurationMs: widget.testDurationMs,
-          ),
+  Future<void> runSession(
+    StudySession session,
+    Experiment experiment, {
+    int returnPage = 1,
+  }) async {
+    await repo!.verify(experiment);
+    await repo!.verifySelection(
+      experiment,
+      session.trials,
+      hashes: session.materialHashes,
+    );
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => TestScreen(
+          repository: repo!,
+          experiment: experiment,
+          session: session,
+          testDurationMs: widget.testDurationMs,
         ),
-      );
-      await reload();
-      page = 1;
+      ),
+    );
+    await reload(select: experiment);
+    page = returnPage;
+  }
+
+  Future<void> launch(
+    StudySession session, {
+    Experiment? experiment,
+    int returnPage = 1,
+  }) => perform(
+    () => runSession(session, experiment ?? active!, returnPage: returnPage),
+  );
+
+  Future<void> startQuickTest(
+    StudyDraft draft,
+    StudyDefinition settings,
+  ) async {
+    if (busy) return;
+    final data = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => GenericParticipantDialog(definition: settings),
+    );
+    if (data == null || !mounted) return;
+    setState(() {
+      busy = true;
+      failure = null;
     });
+    try {
+      final experiment = await repo!.prepareQuickTest(draft, settings);
+      final session = await createParticipantSession(experiment, data);
+      await reload(select: experiment);
+      await runSession(session, experiment, returnPage: 3);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> quickSource(StudyDraft draft) async {
+    if (page != 3) return;
+    await reload(draft: draft);
+    if (mounted) setState(() {});
   }
 
   Future<void> newSession() async {
@@ -228,67 +269,79 @@ class WorkbenchState extends State<Workbench> {
     if (data == null || !mounted) return;
     StudySession? created;
     await perform(() async {
-      final id = data['participantId'] as String;
-      final conditionKey = e.isV2 ? 'conditionId' : 'condition';
-      check(
-        !sessions.any(
-          (s) =>
-              s.participantId == id &&
-              s.display[conditionKey] == data[conditionKey],
-        ),
-        '此参与者在该观看条件下已有会话，请恢复已有会话',
-      );
-      if (e.isV2) {
-        check(
-          !sessions.any(
-            (s) =>
-                s.display['conditionId'] == data['conditionId'] &&
-                s.display['condition'] != data['condition'],
-          ),
-          '相同观看条件编号已使用其他名称，请保持名称一致',
-        );
-      }
-      final view = View.of(context), seed = Random.secure().nextInt(0x7fffffff);
-      created = StudySession(
-        id: e.isV2 ? uuid() : uniqueId(),
-        experimentId: e.id,
-        participantId: id,
-        startedAt: DateTime.now().toUtc().toIso8601String(),
-        seed: seed,
-        schema: e.isV2 ? 2 : 1,
-        studyId: e.isV2 ? e.studyId : null,
-        schedulerVersion: e.isV2
-            ? e.release!['implementations']['scheduler'] as String
-            : null,
-        participant: e.isV2
-            ? jsonMap(data['participant'], 'participant')
-            : {
-                'age': data['age'],
-                'expert': data['expert'],
-                'normalVision': true,
-                'normalColorVision': true,
-                'organizerOrDeveloper': false,
-              },
-        display: {
-          'condition': data['condition'],
-          if (e.isV2) 'conditionId': data['conditionId'],
-          'device': data['device'],
-          'distanceCm': data['distanceCm'],
-          'displayNotes': data['displayNotes'],
-          'platform': Platform.operatingSystem,
-          'osVersion': Platform.operatingSystemVersion,
-          'screenWidthPx': view.physicalSize.width,
-          'screenHeightPx': view.physicalSize.height,
-          'dpr': view.devicePixelRatio,
-        },
-        trials: buildSchedule(e, seed),
-      );
-      await repo!.pinSelection(e, created!);
-      created!.validate(e);
-      await repo!.save(created!);
-      await reload();
+      created = await createParticipantSession(e, data);
+      await reload(select: e);
     });
-    if (created != null && mounted && failure == null) await launch(created!);
+    if (created != null && mounted && failure == null) {
+      await launch(created!, experiment: e);
+    }
+  }
+
+  Future<StudySession> createParticipantSession(
+    Experiment e,
+    Map<String, dynamic> data,
+  ) async {
+    final saved = await repo!.sessions(e);
+    if (!mounted) throw StateError('测试页面已经关闭，请重新开始');
+    final id = data['participantId'] as String;
+    final conditionKey = e.isV2 ? 'conditionId' : 'condition';
+    check(
+      !saved.any(
+        (s) =>
+            s.participantId == id &&
+            s.display[conditionKey] == data[conditionKey],
+      ),
+      '此参与者在该观看条件下已有会话，请恢复已有会话',
+    );
+    if (e.isV2) {
+      check(
+        !saved.any(
+          (s) =>
+              s.display['conditionId'] == data['conditionId'] &&
+              s.display['condition'] != data['condition'],
+        ),
+        '相同观看条件编号已使用其他名称，请保持名称一致',
+      );
+    }
+    final view = View.of(context), seed = Random.secure().nextInt(0x7fffffff);
+    final created = StudySession(
+      id: e.isV2 ? uuid() : uniqueId(),
+      experimentId: e.id,
+      participantId: id,
+      startedAt: DateTime.now().toUtc().toIso8601String(),
+      seed: seed,
+      schema: e.isV2 ? 2 : 1,
+      studyId: e.isV2 ? e.studyId : null,
+      schedulerVersion: e.isV2
+          ? e.release!['implementations']['scheduler'] as String
+          : null,
+      participant: e.isV2
+          ? jsonMap(data['participant'], 'participant')
+          : {
+              'age': data['age'],
+              'expert': data['expert'],
+              'normalVision': true,
+              'normalColorVision': true,
+              'organizerOrDeveloper': false,
+            },
+      display: {
+        'condition': data['condition'],
+        if (e.isV2) 'conditionId': data['conditionId'],
+        'device': data['device'],
+        'distanceCm': data['distanceCm'],
+        'displayNotes': data['displayNotes'],
+        'platform': Platform.operatingSystem,
+        'osVersion': Platform.operatingSystemVersion,
+        'screenWidthPx': view.physicalSize.width,
+        'screenHeightPx': view.physicalSize.height,
+        'dpr': view.devicePixelRatio,
+      },
+      trials: buildSchedule(e, seed),
+    );
+    await repo!.pinSelection(e, created);
+    created.validate(e);
+    await repo!.save(created);
+    return created;
   }
 
   Widget card(String title, String subtitle, Widget content) => Card(
@@ -834,19 +887,22 @@ class WorkbenchState extends State<Workbench> {
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 920;
-    const destinations = [
-      (Icons.layers_outlined, '实验'),
-      (Icons.people_outline, '采集会话'),
-      (Icons.bar_chart_outlined, '结果汇总'),
+    final destinations = [
+      if (Platform.isWindows) (3, Icons.play_circle_outline, '开始测试'),
+      (1, Icons.people_outline, '采集会话'),
+      (2, Icons.bar_chart_outlined, '结果汇总'),
+      (0, Icons.layers_outlined, Platform.isWindows ? '高级实验管理' : '实验'),
     ];
     return Scaffold(
       bottomNavigationBar: wide
           ? null
           : NavigationBar(
-              selectedIndex: page,
-              onDestinationSelected: (i) => setState(() => page = i),
+              selectedIndex: destinations.indexWhere((d) => d.$1 == page),
+              onDestinationSelected: (i) {
+                if (!busy) setState(() => page = destinations[i].$1);
+              },
               destinations: [
-                for (final (icon, label) in destinations)
+                for (final (_, icon, label) in destinations)
                   NavigationDestination(icon: Icon(icon), label: label),
               ],
             ),
@@ -891,7 +947,7 @@ class WorkbenchState extends State<Workbench> {
                         ],
                       ),
                     ),
-                    for (final (i, entry) in destinations.indexed)
+                    for (final entry in destinations)
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -900,14 +956,16 @@ class WorkbenchState extends State<Workbench> {
                         child: Material(
                           color: Colors.transparent,
                           child: ListTile(
-                            selected: page == i,
+                            selected: page == entry.$1,
                             selectedTileColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            leading: Icon(entry.$1, color: workbenchInk),
-                            title: Text(entry.$2),
-                            onTap: () => setState(() => page = i),
+                            leading: Icon(entry.$2, color: workbenchInk),
+                            title: Text(entry.$3),
+                            onTap: busy
+                                ? null
+                                : () => setState(() => page = entry.$1),
                           ),
                         ),
                       ),
@@ -956,6 +1014,7 @@ class WorkbenchState extends State<Workbench> {
                                   '从一个问题，建立一次实验',
                                   '让参与者专注于判断',
                                   '让每一次判断可追溯',
+                                  '选择素材，设置后直接开始',
                                 ][page],
                                 style: TextStyle(
                                   fontSize: wide ? 32 : 26,
@@ -965,9 +1024,13 @@ class WorkbenchState extends State<Workbench> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-                              const Text(
-                                '准备素材  /  预览发布  /  采集与分析',
-                                style: TextStyle(color: Color(0xff728078)),
+                              Text(
+                                page == 3
+                                    ? '选素材目录  /  设置抽样与显示  /  登记并开始'
+                                    : '实验管理  /  采集与分析',
+                                style: const TextStyle(
+                                  color: Color(0xff728078),
+                                ),
                               ),
                               const SizedBox(height: 28),
                               if (failure != null)
@@ -989,7 +1052,25 @@ class WorkbenchState extends State<Workbench> {
                                     style: const TextStyle(fontSize: 12),
                                   ),
                                 ),
-                              if (repo != null)
+                              if (repo != null && Platform.isWindows)
+                                Visibility(
+                                  visible: page == 3,
+                                  maintainState: true,
+                                  child: QuickTestPanel(
+                                    repository: repo!,
+                                    busy: busy,
+                                    active: active,
+                                    sessions: sessions,
+                                    onSource: quickSource,
+                                    onStart: startQuickTest,
+                                    onResume: (session, e) => launch(
+                                      session,
+                                      experiment: e,
+                                      returnPage: 3,
+                                    ),
+                                  ),
+                                ),
+                              if (repo != null && page != 3)
                                 switch (page) {
                                   0 => library(),
                                   1 => collection(),
