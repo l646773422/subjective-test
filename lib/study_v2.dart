@@ -131,6 +131,7 @@ class StudyDefinition {
         'uiDisparity',
         'pointerMapping',
       ], 'presentation.stereo');
+      // Keep the schema's legacy meaning for old files; new UI writes Half SBS explicitly.
       stereo.putIfAbsent('layout', () => 'full_sbs');
       stereo.putIfAbsent('uiDisparity', () => 0);
       stereo.putIfAbsent('pointerMapping', () => 'screen');

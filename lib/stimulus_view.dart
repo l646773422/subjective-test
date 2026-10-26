@@ -106,6 +106,8 @@ class _StereoSurfaceState extends State<StereoSurface> {
     return LayoutBuilder(
       builder: (context, bounds) {
         final half = bounds.maxWidth / 2;
+        // Half SBS first lays out a full-width eye, then squeezes the entire
+        // tree to half width: stimuli, UI, software pointer and hit transforms.
         final logicalWidth = widget.stereo!['layout'] == 'half_sbs'
             ? bounds.maxWidth
             : half;

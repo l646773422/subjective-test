@@ -15,7 +15,7 @@ import 'flow_test.dart' as support;
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
-    'Windows real packed SBS: one-page setup, full eyes, matched patches, answers and resume',
+    'Windows real Half SBS: one-page setup, squeezed eyes, matched patches, answers and resume',
     (tester) async {
       const path = String.fromEnvironment('STUDY_RENDER_ROOT');
       expect(path, isNotEmpty);
@@ -25,6 +25,7 @@ void main() {
       final draft = await repo.loadQuickDirectory(Directory(path));
       expect(draft.definition.items.length, 1500);
       expect(draft.definition.packedStereo, true);
+      expect(draft.definition.stereo!['layout'], 'half_sbs');
       StudyDefinition? selected;
       support.integrationBinding.reportData = {
         'purpose': 'real prepacked Dunhuang SBS workflow simulation',
@@ -54,20 +55,22 @@ void main() {
           ),
         ),
       );
-      await support.until(
-        tester,
-        () => find
-            .byKey(const Key('quick-count-Dance_Dunhuang_Pair_1080'))
-            .evaluate()
-            .isNotEmpty,
-      );
+      await support.until(tester, () {
+        final count = find.byKey(
+          const Key('quick-count-Dance_Dunhuang_Pair_1080'),
+        );
+        return count.evaluate().isNotEmpty &&
+            tester.widget<TextField>(count).enabled == true;
+      });
       expect(find.text('素材：已拼 SBS'), findsOneWidget);
       expect(find.textContaining('尚未指定右眼'), findsNothing);
       Future<void> enter(String key, String value) async {
         final f = find.byKey(Key(key));
         await tester.ensureVisible(f);
+        expect(tester.widget<TextField>(f).enabled, true);
         await tester.enterText(f, value);
         await tester.pump();
+        expect(tester.widget<TextField>(f).controller!.text, value);
       }
 
       Future<void> tap(String key) async {
@@ -83,6 +86,11 @@ void main() {
       await tap('quick-patch-enabled');
       await enter('quick-patch-width', '512');
       await enter('quick-patch-height', '320');
+      await tap('quick-stereo-details');
+      expect(
+        find.byKey(const Key('quick-stereo-layout-half_sbs')),
+        findsOneWidget,
+      );
       await support.capture(tester, repo, 'packed-setup');
       await tap('quick-start-test');
       expect(selected!.packedStereo, true);
@@ -220,6 +228,12 @@ void main() {
         () => s.answers.length == 1 && !screen.runner.saving,
       );
       await screen.runner.interrupt('packed-disk-restart');
+      // Saving an answer can already start the next image before interruption.
+      // Keep that partial presentation, then expect a full replay after restart.
+      final imagesBeforeRestart = s.events
+          .where((ev) => ['imageA', 'imageB'].contains(ev['stage']))
+          .length;
+      final remainingImages = (s.trials.length - s.answers.length) * 2;
       await mouse.removePointer();
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
@@ -240,13 +254,19 @@ void main() {
       final imageEvents = s.events
           .where((ev) => ['imageA', 'imageB'].contains(ev['stage']))
           .toList();
-      expect(imageEvents.length, 8);
+      expect(imageEvents.length, imagesBeforeRestart + remainingImages);
       for (final event in imageEvents) {
         final rects = event['viewport']['eyeSourceRects'] as List;
         expect(rects[1]['x'] - rects[0]['x'], 1920);
         expect(rects[1]['y'], rects[0]['y']);
         expect(rects[0]['width'], 512);
         expect(rects[1]['height'], 320);
+        expect(event['viewport']['stereo']['layout'], 'half_sbs');
+        expect(
+          event['viewport']['imageWidthPx'] /
+              event['viewport']['imageHeightPx'],
+          closeTo(512 / 320 / 2, 0.001),
+        );
       }
       expect(utf8.decode(repo.resultsCsv(e, [s])), contains('stereo_input'));
       expect(s.materialHashes.length, 4);
@@ -257,6 +277,8 @@ void main() {
         'materialHashes': s.materialHashes.length,
         'cropPerEye': s.trials.first.patch,
         'resumeMatches': true,
+        'layout': 'half_sbs',
+        'horizontalScale': 0.5,
       });
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();

@@ -114,7 +114,7 @@ void main() {
   });
 
   testWidgets(
-    'editor defaults to Full SBS and saves exact pixel patch dimensions',
+    'editor defaults to Half SBS and saves exact pixel patch dimensions',
     (tester) async {
       tester.view.physicalSize = const Size(1280, 1000);
       tester.view.devicePixelRatio = 1;
@@ -143,7 +143,7 @@ void main() {
       await tester.enterText(find.byKey(const Key('patch-height')), '320');
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pumpAndSettle();
-      expect(repo.saved!.definition.stereo!['layout'], 'full_sbs');
+      expect(repo.saved!.definition.stereo!['layout'], 'half_sbs');
       expect(repo.saved!.definition.patch, {
         'width': 512,
         'height': 320,

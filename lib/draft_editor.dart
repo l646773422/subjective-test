@@ -579,7 +579,7 @@ class _DraftEditorState extends State<DraftEditor> {
                                   if (v) {
                                     disparity.text = '0';
                                     p['stereo'] = {
-                                      'layout': 'full_sbs',
+                                      'layout': 'half_sbs',
                                       'uiDisparity': 0,
                                     };
                                   } else {
@@ -614,8 +614,8 @@ class _DraftEditorState extends State<DraftEditor> {
                                   changed();
                                 },
                                 labelFor: (v) => v == 'half_sbs'
-                                    ? 'Half SBS（半宽）'
-                                    : 'Full SBS（全宽）',
+                                    ? 'Half SBS（横向压缩一半）'
+                                    : 'Full SBS（不压缩）',
                               ),
                               choice<String>(
                                 '鼠标映射',

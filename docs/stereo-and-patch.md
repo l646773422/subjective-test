@@ -10,7 +10,7 @@ Windows 调试版支持这两项功能；普通 2D 素材默认关闭，识别�
 
 ```json
 {
-  "presentation": {"stereo": {"input": "sbs", "layout": "full_sbs", "uiDisparity": 0}},
+  "presentation": {"stereo": {"input": "sbs", "layout": "half_sbs", "uiDisparity": 0}},
   "items": [{"id": "frame-012-view-020", "a": "gt/012-020.png", "b": "renders/012-020.png"}]
 }
 ```
@@ -33,9 +33,11 @@ Windows 调试版支持这两项功能；普通 2D 素材默认关闭，识别�
 
 分图模式添加题目会依次选择四张图片，四张图片须同尺寸，发布和预览前补齐右眼路径。`presentation.stereo.input` 省略时沿用原来的 `separate` 分图规则；旧定义不会补写这个字段。
 
-原目录适配器同时识别 `frame*/test/primitive/{gt,renders}` 和 `frame*/test/{gt,renders}`，可只选一个序列。已知序列的图片若恰为单眼标准尺寸的两倍宽，则识别为 Full SBS，页面明确显示“素材：已拼 SBS”；混合普通/已拼 SBS 的目录会报错。新敦煌目录 `D:/文档/鹏城项目/13专项-沉浸式/项目测试/裸眼` 共 1,500 组，3840×1080，每眼 1920×1080。任意其他命名或分辨率通过 `study.json` 明确声明，不根据相邻视点猜左右眼。
+原目录适配器同时识别 `frame*/test/primitive/{gt,renders}` 和 `frame*/test/{gt,renders}`，可只选一个序列。已知序列的图片若恰为单眼标准尺寸的两倍宽，则识别为包含完整双眼像素的已拼 SBS 源，页面明确显示“素材：已拼 SBS”；新建测试的输出默认 Half SBS。混合普通/已拼 SBS 的目录会报错。新敦煌目录 `D:/文档/鹏城项目/13专项-沉浸式/项目测试/裸眼` 共 1,500 组，3840×1080，每眼 1920×1080。任意其他命名或分辨率通过 `study.json` 明确声明，不根据相邻视点猜左右眼。
 
-用户已确认设备使用 Full SBS，新建和新开启的双眼模式默认选择 Full SBS，每个半屏等比显示完整的单眼画面，左半屏始终为左眼。既有 Half SBS 配置继续读取；Half SBS 将完整逻辑画面横向压到半屏，由设备解码恢复比例。
+2026-10-26 用户实机确认设备需要 **Half SBS（横向压缩一半）**，替代此前 Full SBS 的假定。新建和新开启的双眼模式默认选择 Half SBS：例如屏幕 1920×1080，每眼按 1920×1080 布局后横向压成 960×1080，再左右合成一屏；高度不变。图片、Patch、文字、按钮、软件指针及点击映射同步处理。左半屏为左眼，右半屏为右眼；每眼只取对应源区域。当前 3840×1080 素材无需重编码。
+
+准备页展开“3D 输出”可切换 Half SBS 和 Full SBS。旧 renders 草稿在首次按新规则准备会话时默认 Half SBS，后续显式选择会随新配置保存。已发布的旧版本和会话保持原输出，不能用新设置改写旧结果。源格式中省略 layout 的旧含义仍为 full_sbs；软件新建规则显式写 half_sbs，兼容解析不变。
 
 提示、问题、选项、暂停、退出确认与完成页面均绘制到双眼。UI 双眼视差范围为 -64～64 逻辑像素，指左右眼的总水平偏移；默认 0，位于屏幕平面。正值向内偏移、负值向外偏移，指针与 UI 使用相同视差。正式使用前在设备上确认可舒适融合。
 
@@ -60,7 +62,7 @@ Windows 调试版支持这两项功能；普通 2D 素材默认关闭，识别�
   "mode": "sequential",
   "promptMs": 2000,
   "imageMs": 3000,
-  "stereo": {"layout": "full_sbs", "uiDisparity": 0, "pointerMapping": "screen"},
+  "stereo": {"layout": "half_sbs", "uiDisparity": 0, "pointerMapping": "screen"},
   "patch": {"width": 512, "height": 320, "distribution": "center_triangular"}
 }
 ```

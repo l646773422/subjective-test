@@ -572,7 +572,7 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                 ? null
                 : (value) => setState(() {
                     model.stereoEnabled = value;
-                    if (value) model.layout = 'full_sbs';
+                    if (value) model.layout = 'half_sbs';
                     failure = null;
                   }),
           ),
@@ -614,11 +614,42 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
               shape: const Border(),
               collapsedShape: const Border(),
               title: Text(
-                model.layout == 'full_sbs'
-                    ? 'Full SBS · 左右各一幅完整画面'
-                    : 'Half SBS · 旧配置',
+                model.layout == 'half_sbs'
+                    ? 'Half SBS · 图片、UI 和鼠标横向压缩一半'
+                    : 'Full SBS · 保持单眼宽高比',
               ),
               children: [
+                LabeledControl(
+                  label: '3D 输出方式',
+                  child: DropdownButtonFormField<String>(
+                    key: ValueKey('quick-stereo-layout-${model.layout}'),
+                    initialValue: model.layout,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'half_sbs',
+                        child: Text('Half SBS（横向压缩一半）'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'full_sbs',
+                        child: Text('Full SBS（不压缩）'),
+                      ),
+                    ],
+                    onChanged: locked
+                        ? null
+                        : (value) => setState(() {
+                            model.layout = value!;
+                            failure = null;
+                          }),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  model.layout == 'half_sbs'
+                      ? '例如 1920×1080 屏幕：左右眼各压成 960×1080，再合成一屏；图片、文字、按钮和鼠标一起压缩。'
+                      : '每眼按自身显示区域等比绘制，不做额外横向压缩。',
+                ),
+                const SizedBox(height: 16),
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,

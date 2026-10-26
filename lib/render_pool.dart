@@ -168,12 +168,13 @@ extension RenderPoolRepository on StudyRepository {
         ...?definition['presentation'] as Map<String, dynamic>?,
         'stereo': {
           'input': 'sbs',
-          'layout': 'full_sbs',
+          'layout': 'half_sbs',
           'uiDisparity': 0,
           'pointerMapping': 'screen',
         },
       };
       (definition['metadata'] as Map)['sourceAdapter'] = 'sbs-renders@1';
+      (definition['metadata'] as Map)['stereoOutputPolicy'] = 'half-default@1';
     }
     definition['items'] = items;
     definition['studyId'] =

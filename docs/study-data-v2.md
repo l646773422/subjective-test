@@ -144,7 +144,7 @@ Python 工具检查字段、路径、文件存在性和非空性；不执行完�
 
 正式界面不提供跳题、答题超时、默认选择、回看或每题正确率。中断后保留记录，恢复时从当前题开头重播。A/B 仍顺序播放，双眼可用 SBS 同时显示。
 
-可选 `presentation.stereo={input:"sbs",layout:"full_sbs",uiDisparity:0,pointerMapping:"screen"}` 开启已拼双眼输入：每个 `a/b` 文件的左、右半幅分别对应两眼，图片宽度须为偶数。`input` 省略或为 `separate` 时使用原四路径规则，必须提供 `aRight/bRight`，旧定义不补写 input。用户确认设备使用 Full SBS，新配置默认 full_sbs，既有显式 half_sbs 继续兼容；UI 双眼总水平视差为 -64～64 逻辑像素。pointerMapping 为 screen（整屏连续）或 per_eye（普通屏幕分半调试）。两眼 UI 和软件指针同步，图片阶段隐藏所有鼠标。分图实现为 `2afc-stereo@1`，已拼 SBS 为 `2afc-sbs@1`。
+可选 `presentation.stereo={input:"sbs",layout:"half_sbs",uiDisparity:0,pointerMapping:"screen"}` 开启已拼双眼输入：每个 `a/b` 文件的左、右半幅分别对应两眼，图片宽度须为偶数。`input` 省略或为 `separate` 时使用原四路径规则，必须提供 `aRight/bRight`，旧定义不补写 input。2026-10-26 用户实机确认当前设备使用 Half SBS，软件新建配置显式写 half_sbs：每眼按完整屏幕尺寸排版后横向压缩到半屏，图片、Patch、UI 和鼠标一起压缩，高度不变。旧源中省略 layout 的解析含义仍为 full_sbs，已发布会话保持原配置；准备页可显式切换两种输出。UI 双眼总水平视差为 -64～64 逻辑像素；Half SBS 下同样随逻辑画面横向缩放。pointerMapping 为 screen（整屏连续）或 per_eye（普通屏幕分半调试）。图片阶段隐藏所有鼠标。分图实现为 `2afc-stereo@1`，已拼 SBS 为 `2afc-sbs@1`。
 
 可选 `presentation.patch={width:512,height:320,distribution:"center_triangular"}` 开启裁剪。width、height 为正整数原图像素，可独立设置宽高比，面积上限 4000 万像素；发布前检查不能超过任何候选图，预览也检查越界。裁剪结果按自身宽高比等比适应显示区域。先完成帧/视点和次序排程，再用独立 PRNG 抽取中心偏重三角分布位置，每题四张图及重复轮次共享区域。会话 trial.patch 保存 x/y/width/height 像素矩形；像素配置使用 `2afc-schedule@4`，旧面积配置 area（0.001～1）及 `2afc-schedule@3` 继续沿用原平方根算法，不能混用两种配置。恢复与导入校验区域，CSV 导出实际矩形、种子及右眼指纹。省略字段关闭，不向旧定义补写默认值。详见 [操作与完整示例](stereo-and-patch.md)。
 

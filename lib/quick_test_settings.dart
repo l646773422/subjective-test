@@ -30,7 +30,7 @@ class QuickTestSettings {
       legacyPatch = base.patch?.containsKey('area') == true ? base.patch : null,
       patchWidth = '${base.patch?['width'] ?? 512}',
       patchHeight = '${base.patch?['height'] ?? 512}',
-      layout = base.stereo?['layout'] as String? ?? 'full_sbs',
+      layout = initialStereoLayout(base),
       stereoInput = base.stereo?['input'] as String? ?? 'separate',
       pointerMapping = base.stereo?['pointerMapping'] as String? ?? 'screen',
       disparity = '${base.stereo?['uiDisparity'] ?? 0}',
@@ -71,6 +71,20 @@ class QuickTestSettings {
     }
   }
   int get selectedCount => counts.values.fold(0, (a, b) => a + b);
+  static String initialStereoLayout(StudyDefinition base) {
+    final metadata = base.toJson()['metadata'] as Map;
+    // Earlier raw-material drafts defaulted to Full SBS. New runs on the
+    // confirmed device use Half SBS; published sessions remain unchanged.
+    if ([
+          'primitive-renders@2',
+          'sbs-renders@1',
+        ].contains(metadata['sourceAdapter']) &&
+        metadata['stereoOutputPolicy'] != 'half-default@1') {
+      return 'half_sbs';
+    }
+    return base.stereo?['layout'] as String? ?? 'half_sbs';
+  }
+
   List<Map<String, dynamic>> groupItems(String group) => base.items
       .where((i) => i['role'] == 'main' && (i['group'] ?? ungrouped) == group)
       .toList();
@@ -230,6 +244,7 @@ class QuickTestSettings {
           };
     }
     if (stereoEnabled) {
+      (source['metadata'] as Map)['stereoOutputPolicy'] = 'half-default@1';
       presentation['stereo'] = {
         if (stereoInput == 'sbs' || base.stereo?.containsKey('input') == true)
           'input': stereoInput,
