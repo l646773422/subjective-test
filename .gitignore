@@ -50,5 +50,6 @@ app.*.map.json
 # Local delivery and native validation evidence
 /dist/
 /validation/
+/build-logs/
 /android-current*.png
 /android/.kotlin/

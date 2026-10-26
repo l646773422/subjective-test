@@ -91,4 +91,6 @@ Windows 插件链接受限时可运行 `tools/prepare_windows.ps1` 创建项目�
 
 Windows Release 构建可运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1`；依赖已缓存时添加 `-Offline`。构建完成后运行 `build/windows/x64/runner/Release/subjective_study.exe`，分发时携带整个 Release 目录，素材另行提供。需要调试时，本机可在项目目录运行 `& 'D:\tools\flutter\bin\flutter.bat' run -d windows`，无需将 Flutter 加入 PATH。
 
+构建脚本显示带时间的中文阶段、实际工具状态、每 15 秒运行提醒和最终耗时；失败标出阶段、退出码和完整日志路径。完整 Flutter 输出保存在 build-logs/，加 -ShowDetails 可同时在终端显示。操作和验证说明见 [Windows 构建状态与日志](docs/windows-build.md)。
+
 原 v1 验证见 [docs/validation.md](docs/validation.md)，v2 验证见 [docs/validation-v2.md](docs/validation-v2.md)。四序列真实素材的结构检查、转换和调试流程见 [真实素材流程演练](docs/real-materials-workflow.md)。
