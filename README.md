@@ -87,8 +87,8 @@ flutter drive --driver=test_driver/driver.dart --target=integration_test/flow_te
 
 集成验证覆盖真实计时与中断、旧版完整 46 题、v2 最小实验与跨设备数据交换。加速计时只由测试入口注入，生产使用发布配置。实体设备和正式素材的显示条件须按实验要求另行联调。
 
-Windows 插件链接受限时可运行 `tools/prepare_windows.ps1` 创建项目内 junction。`tools/build.ps1` 默认使用 `D:/tools/flutter`，路径可通过参数覆盖。两端构建按顺序执行，Android Release 使用内部调试签名。`tools/package.ps1` 整理 Release 产物及 SHA-256 清单到 dist。
+Windows 插件链接受限时可运行 `tools/prepare_windows.ps1` 创建项目内 junction。`tools/build.ps1` 默认使用 `D:/tools/flutter`，路径可通过参数覆盖；默认只构建 Windows，添加 `-Android` 才同时构建 Android。构建脚本跳过 Flutter SDK 的联网版本检查，显示依赖准备与编译阶段；依赖已缓存时可加 `-Offline`，避免 pub 联网解析。`-Offline` 只控制 pub，尚未缓存的 Flutter/CMake 平台组件仍可能需要下载。示例：`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1 -Offline`。两端构建按顺序执行，Android Release 使用内部调试签名。现有 `tools/package.ps1` 同时要求 Windows 和 Android 产物；仅 Windows 时压缩完整 `build/windows/x64/runner/Release/` 目录。
 
-当前阶段只运行 Windows 调试版，不执行发布构建或打包。如果终端找不到 `flutter`，本机可在项目目录运行 `& 'D:\tools\flutter\bin\flutter.bat' run -d windows`。
+Windows Release 构建可运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1`；依赖已缓存时添加 `-Offline`。构建完成后运行 `build/windows/x64/runner/Release/subjective_study.exe`，分发时携带整个 Release 目录，素材另行提供。需要调试时，本机可在项目目录运行 `& 'D:\tools\flutter\bin\flutter.bat' run -d windows`，无需将 Flutter 加入 PATH。
 
 原 v1 验证见 [docs/validation.md](docs/validation.md)，v2 验证见 [docs/validation-v2.md](docs/validation-v2.md)。四序列真实素材的结构检查、转换和调试流程见 [真实素材流程演练](docs/real-materials-workflow.md)。
