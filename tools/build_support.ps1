@@ -1,4 +1,47 @@
 ﻿# Shared logging and native process supervision, compatible with Windows PowerShell 5.1.
+function Get-StudyBuildCommit {
+    param([string]$Project)
+    $commit = & git -C $Project rev-parse --short=7 HEAD
+    if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{7,40}$') {
+        throw '无法读取当前 Git commit，不能为构建包命名。'
+    }
+    return $commit.Trim()
+}
+
+function New-StudyWindowsArchive {
+    param([string]$Project, [string]$Commit)
+    if ($Commit -notmatch '^[0-9a-f]{7,40}$') { throw '构建包需要有效的短 commit hash' }
+    $release = Join-Path $Project 'build/windows/x64/runner/Release'
+    foreach ($file in @('subjective_study.exe', 'flutter_windows.dll')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $release $file) -PathType Leaf)) {
+            throw "Release 缺少 $file，无法打包"
+        }
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $release 'data') -PathType Container)) {
+        throw 'Release 缺少 data 资源目录，无法打包'
+    }
+    $outputs = Join-Path $Project 'outputs'
+    New-Item -ItemType Directory -Path $outputs -Force | Out-Null
+    $name = 'subjective-study-windows-x64-{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $Commit
+    $destination = Join-Path $outputs ($name + '.zip')
+    $suffix = 2
+    while (Test-Path -LiteralPath $destination) {
+        $destination = Join-Path $outputs ("{0}-{1}.zip" -f $name, $suffix)
+        $suffix++
+    }
+    $partial = $destination + '.' + [guid]::NewGuid().ToString('N') + '.partial'
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    try {
+        # Unlike Compress-Archive, this includes hidden files and empty folders.
+        # Put the Release contents at ZIP root so the executable runs after extraction.
+        [IO.Compression.ZipFile]::CreateFromDirectory($release, $partial, [IO.Compression.CompressionLevel]::Optimal, $false)
+        Move-Item -LiteralPath $partial -Destination $destination -ErrorAction Stop
+        return $destination
+    } finally {
+        if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Force }
+    }
+}
+
 function New-StudyBuildContext {
     param([string]$Project, [switch]$ShowDetails, [int]$HeartbeatSeconds = 15)
     $logDirectory = Join-Path $Project 'build-logs'

@@ -89,9 +89,9 @@ flutter drive --driver=test_driver/driver.dart --target=integration_test/flow_te
 
 集成验证覆盖真实计时与中断、旧版完整 46 题、v2 最小实验与跨设备数据交换。加速计时只由测试入口注入，生产使用发布配置。实体设备和正式素材的显示条件须按实验要求另行联调。
 
-Windows 插件链接受限时可运行 `tools/prepare_windows.ps1` 创建项目内 junction。`tools/build.ps1` 默认使用 `D:/tools/flutter`，路径可通过参数覆盖；默认只构建 Windows，添加 `-Android` 才同时构建 Android。构建脚本跳过 Flutter SDK 的联网版本检查，显示依赖准备与编译阶段；依赖已缓存时可加 `-Offline`，避免 pub 联网解析。`-Offline` 只控制 pub，尚未缓存的 Flutter/CMake 平台组件仍可能需要下载。示例：`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1 -Offline`。两端构建按顺序执行，Android Release 使用内部调试签名。现有 `tools/package.ps1` 同时要求 Windows 和 Android 产物；仅 Windows 时压缩完整 `build/windows/x64/runner/Release/` 目录。
+Windows 插件链接受限时可运行 `tools/prepare_windows.ps1` 创建项目内 junction。`tools/build.ps1` 默认使用 `D:/tools/flutter`，路径可通过参数覆盖；默认只构建 Windows，添加 `-Android` 才同时构建 Android。构建脚本跳过 Flutter SDK 的联网版本检查，显示依赖准备、编译和 ZIP 打包阶段；依赖已缓存时可加 `-Offline`，避免 pub 联网解析。`-Offline` 只控制 pub，尚未缓存的 Flutter/CMake 平台组件仍可能需要下载。示例：`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1 -Offline`。成功后自动将完整 Windows Release 打包到 Git 忽略的 `outputs/`，例如 `subjective-study-windows-x64-20261026-183000-a1b2c3d.zip`，带日期时间及构建开始时的短 commit hash，同名时添加序号，不覆盖已有包。两端构建按顺序执行，Android Release 使用内部调试签名，APK 仍在原构建目录。旧的 `tools/package.ps1` 保留为同时收集 Windows、Android 和演示资料到 `dist/` 的工具，普通 Windows 构建无需另行运行。
 
-Windows Release 构建可运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1`；依赖已缓存时添加 `-Offline`。构建完成后运行 `build/windows/x64/runner/Release/subjective_study.exe`，分发时携带整个 Release 目录，素材另行提供。需要调试时，本机可在项目目录运行 `& 'D:\tools\flutter\bin\flutter.bat' run -d windows`，无需将 Flutter 加入 PATH。
+Windows Release 构建可运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1`；依赖已缓存时添加 `-Offline`。构建完成后运行 `build/windows/x64/runner/Release/subjective_study.exe`；分发时使用终端打印的 `outputs/` ZIP，解压后直接运行其中的程序，素材另行提供。需要调试时，本机可在项目目录运行 `& 'D:\tools\flutter\bin\flutter.bat' run -d windows`，无需将 Flutter 加入 PATH。
 
 构建脚本显示带时间的中文阶段、实际工具状态、每 15 秒运行提醒和最终耗时；失败标出阶段、退出码和完整日志路径。完整 Flutter 输出保存在 build-logs/，加 -ShowDetails 可同时在终端显示。操作和验证说明见 [Windows 构建状态与日志](docs/windows-build.md)。
 
