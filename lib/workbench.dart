@@ -872,7 +872,7 @@ class WorkbenchState extends State<Workbench> {
                 if (e.isV2 && e.definition!.profile != null)
                   Text(
                     e.definition!.profile!['version'] == 2
-                        ? '真实感模板 · 每个序列至少 ${e.definition!.profile!['minObserversPerSequence']} 位有效参与者；每人独立抽样。'
+                        ? '真实感模板 · 每个序列至少 ${e.definition!.profile!['minObserversPerSequence']} 位有效参与者；${e.definition!.fixedSampling ? '所有人沿用固定列表' : '每人独立抽样'}。'
                         : '真实感模板 · 每题至少 ${e.definition!.profile!['minObserversPerItem']} 位有效参与者；专家比例与覆盖按发布配置检查。',
                   ),
                 if (e.isV2 && e.definition!.profile == null)

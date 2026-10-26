@@ -2,9 +2,12 @@ part of 'domain.dart';
 
 List<Trial> buildV2Schedule(Experiment e, int seed) {
   final d = e.definition!, cfg = d.schedule, random = StableRandom(seed);
-  List<StudyCase> ordered(Iterable<StudyCase> items) {
+  final fixedPositions = {
+    for (final (i, id) in d.fixedOrder.indexed) id: i + 1,
+  };
+  List<StudyCase> ordered(Iterable<StudyCase> items, {bool fixed = false}) {
     final result = items.toList();
-    if (cfg['itemOrder'] == 'random') result.permute(random);
+    if (!fixed && cfg['itemOrder'] == 'random') result.permute(random);
     return result;
   }
 
@@ -20,6 +23,8 @@ List<Trial> buildV2Schedule(Experiment e, int seed) {
             'group': item.sequence,
             'frame': item.frame,
             'view': item.view,
+            if (d.fixedSampling && item.kind == 'main')
+              'position': fixedPositions[item.id],
           }),
   );
   final practice = ordered(e.cases.where((c) => c.kind == 'practice'));
@@ -35,7 +40,10 @@ List<Trial> buildV2Schedule(Experiment e, int seed) {
   ];
   final blocks = <String, List<StudyCase>>{};
   var candidates = e.cases.where((c) => c.kind == 'main').toList();
-  if (d.sampling != null) {
+  if (d.fixedSampling) {
+    final byId = {for (final c in candidates) c.id: c};
+    candidates = [for (final id in d.fixedOrder) byId[id]!];
+  } else if (d.sampling != null) {
     final selected = <StudyCase>[];
     for (final entry in (d.sampling!['perGroup'] as Map).entries) {
       final pool = candidates.where((c) => c.sequence == entry.key).toList();
@@ -50,14 +58,14 @@ List<Trial> buildV2Schedule(Experiment e, int seed) {
         .add(item);
   }
   final groups = blocks.keys.toList();
-  if (cfg['itemOrder'] == 'random') groups.permute(random);
+  if (!d.fixedSampling && cfg['itemOrder'] == 'random') groups.permute(random);
   final main = <Trial>[];
   for (final group in groups) {
     final firstOrder = {
       for (final c in blocks[group]!) c.id: random.nextBool(),
     };
     for (int round = 1; round <= (cfg['repetitions'] as int); round++) {
-      final items = ordered(blocks[group]!);
+      final items = ordered(blocks[group]!, fixed: d.fixedSampling);
       if (cfg['avoidAdjacentRepeats'] == true &&
           main.isNotEmpty &&
           items.first.id == main.last.caseId) {

@@ -429,8 +429,11 @@ class StudyDefinition {
     final main = items.where((i) => i['role'] == 'main').toList();
     if (data.containsKey('sampling')) {
       final sampling = jsonMap(data['sampling'], 'sampling');
-      keys(sampling, ['mode', 'perGroup'], 'sampling');
-      check(sampling['mode'] == 'per_participant', '只支持每位参与者独立抽样');
+      keys(sampling, ['mode', 'perGroup', 'fixedOrder'], 'sampling');
+      check(
+        ['per_participant', 'fixed_order'].contains(sampling['mode']),
+        '抽样模式无效',
+      );
       final counts = jsonMap(sampling['perGroup'], 'sampling.perGroup');
       check(
         counts.isNotEmpty &&
@@ -449,6 +452,42 @@ class StudyDefinition {
               ),
           '素材池分组或抽样数量不符',
         );
+      }
+      if (sampling['mode'] == 'fixed_order') {
+        final order = sampling['fixedOrder'];
+        final byId = {for (final i in main) i['id'] as String: i};
+        check(
+          order is List &&
+              order.isNotEmpty &&
+              order.every((id) => id is String && byId.containsKey(id)) &&
+              order.toSet().length == order.length,
+          '固定列表不能为空，必须引用不重复的正式题编号',
+        );
+        final selected = (order as List).map((id) => byId[id]!).toList();
+        check(
+          selected.length ==
+                  counts.values.cast<int>().fold(0, (a, b) => a + b) &&
+              counts.entries.every(
+                (e) =>
+                    selected.where((i) => i['group'] == e.key).length ==
+                    e.value,
+              ),
+          '固定列表数量与各分组设置不符',
+        );
+        if (schedule['blockByGroup'] == true) {
+          final closed = <String>{};
+          String? previous;
+          for (final item in selected) {
+            final group = item['group'] as String;
+            if (group != previous) {
+              check(!closed.contains(group), '分组测试的固定列表中，同一分组必须连续排列');
+              if (previous != null) closed.add(previous);
+              previous = group;
+            }
+          }
+        }
+      } else {
+        check(!sampling.containsKey('fixedOrder'), '随机抽样模式不能包含固定列表');
       }
       data['sampling'] = sampling;
     }
@@ -520,7 +559,13 @@ class StudyDefinition {
       : stereo == null
       ? '2afc@1'
       : '2afc-stereo@1';
-  String get schedulerVersion => packedStereo
+  bool get fixedSampling => sampling?['mode'] == 'fixed_order';
+  List<String> get fixedOrder => fixedSampling
+      ? (sampling!['fixedOrder'] as List).cast<String>()
+      : const [];
+  String get schedulerVersion => fixedSampling
+      ? '2afc-schedule@6'
+      : packedStereo
       ? '2afc-schedule@5'
       : patch != null
       ? patch!.containsKey('width')

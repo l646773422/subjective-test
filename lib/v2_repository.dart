@@ -607,6 +607,7 @@ extension V2Repository on StudyRepository {
           'a_sha256',
           'b_sha256',
         ],
+        if (e.definition!.fixedSampling) ...['sampling_mode', 'fixed_position'],
         if (e.definition!.patch != null) ...[
           'patch_seed',
           'patch_x',
@@ -655,6 +656,10 @@ extension V2Repository on StudyRepository {
             s.seed,
             s.materialHashes[c.gt],
             s.materialHashes[c.render],
+          ],
+          if (e.definition!.fixedSampling) ...[
+            'fixed_order',
+            t.sample?['position'],
           ],
           if (e.definition!.patch != null) ...[
             s.seed,

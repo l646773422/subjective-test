@@ -50,6 +50,8 @@ python tools/study_data.py migrate demo-data/demo.study.zip validation/migrated-
 
 ## 真实感模板与旧数据
 
+“开始测试”的“选图方式”支持“每人随机抽取”和“固定帧和视点（所有人相同）”。固定模式按每个序列填写指定数量的帧/视点绑定，支持粘贴多行；所有参与者使用相同内容和列表顺序，A/B 次序平衡、Patch 每人随机。成功开始后配置自动保存，修改列表生成新版本，旧会话保持原设置。见 [固定采样列表](docs/fixed-sampling.md)。
+
 Windows 首页“开始测试”选择包含 `*_renders` 序列的上级目录，允许只含一个序列。软件读取 `frame*/test/primitive/{gt,renders}` 或 `frame*/test/{gt,renders}` 的全部候选图片，不复制原图。新裸眼目录中的敦煌素材为 1,500 组已拼 SBS，读取后自动开启对应 3D 模式。每位参与者独立随机抽帧和视点，默认每个 VRU 序列抽 4 组、Dance / Show 各 6 组，可在同页修改；同一组交换顺序各答一次。当前没有练习和控制素材，自动载入版本明确标记为演练。
 
 新真实感模板使用每人抽样与 profile 2，保留登记字段、独立练习和控制要求。旧 profile 1 的固定单帧题库、逐图人数条件和统计实现继续兼容。具体抽样规则、测试状态和原目录操作见 [Windows 真实素材流程](docs/real-materials-workflow.md)。本轮先完成 Windows 联调，安卓目录读取和最终安装包发布后置。

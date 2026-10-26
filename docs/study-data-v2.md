@@ -152,6 +152,10 @@ Python 工具检查字段、路径、文件存在性和非空性；不执行完�
 
 ### 排程
 
+固定采样可设置 sampling.mode 为 fixed_order，保留 perGroup 数量，增加 fixedOrder 数组，内容为正式题 id 的有序列表。引用必须存在且唯一，各分组数量须与 perGroup 完全一致；blockByGroup 为 true 时，同一分组必须连续排列。新模式使用 2afc-schedule@6：正式题不再按参与者抽取或打乱，分组按列表首次出现顺序测试，每组每轮按所列顺序出题。未分组块时整份列表逐轮重复。练习与控制题沿用原排程规则，A/B 次序仍由当前会话种子和平衡配置决定，Patch 仍按当前会话种子随机。旧模式不补写字段，旧排程版本保持原结果。
+
+固定模式的 trial.sample.position 为该正式题在 fixedOrder 中的序号（从 1 开始），重复轮次共用序号。CSV 额外导出 sampling_mode 和 fixed_position；sampling_seed 在固定模式主要用于 A/B 先后与 Patch，不代表重新抽取帧和视点。
+
 - `repetitions` 为 1～1000 的整数，**只影响正式题**。练习和控制题各出现一次。
 - `pairOrder: "random"` 为每个题次独立随机先后次序；`balanced` 要求正式题重复次数为偶数，每一道正式题有一半 a 先、一半 b 先。
 - `itemOrder: "listed"` 使用清单顺序；`random` 在每轮内随机排列。练习题和控制题也使用该字段选择清单顺序或随机顺序。

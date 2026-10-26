@@ -22,6 +22,20 @@ def minimal():
 
 
 class StudyDataTests(unittest.TestCase):
+    def test_fixed_order_contract_rejects_unknown_duplicate_and_mismatched_items(self):
+        source = minimal()
+        source['items'] = [dict(source['items'][0], id=f'pair-{i}', group='scene') for i in range(4)]
+        source['sampling'] = {'mode': 'fixed_order', 'perGroup': {'scene': 2}, 'fixedOrder': ['pair-3', 'pair-0']}
+        self.assertEqual(normalize(source)['sampling']['fixedOrder'], ['pair-3', 'pair-0'])
+        for order in ([], ['pair-3'], ['pair-3', 'pair-3'], ['pair-3', 'unknown']):
+            bad = copy.deepcopy(source)
+            bad['sampling']['fixedOrder'] = order
+            with self.subTest(order=order), self.assertRaises(StudyError):
+                normalize(bad)
+        source['sampling']['mode'] = 'per_participant'
+        with self.assertRaises(StudyError):
+            normalize(source)
+
     def test_packed_sbs_needs_only_two_alternatives(self):
         source = minimal()
         source['presentation'] = {'stereo': {'input': 'sbs'}, 'patch': {'width': 512, 'height': 320}}

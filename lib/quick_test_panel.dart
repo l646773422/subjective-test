@@ -8,6 +8,7 @@ import 'repository.dart';
 import 'quick_test_settings.dart';
 import 'quick_test_dialog.dart';
 import 'labeled_control.dart';
+import 'fixed_sampling_dialog.dart';
 
 class QuickTestPanel extends StatefulWidget {
   final StudyRepository repository;
@@ -179,6 +180,26 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
     if (applied == true && mounted) setState(() => failure = null);
   }
 
+  Future<void> configureFixed(String group) async {
+    if (locked || settings == null) return;
+    final count = int.tryParse(countInputs[group]!.text);
+    if (count == null || count < 1 || count > settings!.available[group]!) {
+      setState(() => failure = '请先填写有效的测试图片数量');
+      return;
+    }
+    final ids = await showDialog<List<String>>(
+      context: context,
+      builder: (_) =>
+          FixedSamplingDialog(settings: settings!, group: group, count: count),
+    );
+    if (ids != null && mounted) {
+      setState(() {
+        settings!.fixedIds[group] = ids;
+        failure = null;
+      });
+    }
+  }
+
   @override
   void dispose() {
     pendingGeneration++;
@@ -334,45 +355,101 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
       );
     }
     final sampling = card(
-      '2  每位参与者抽取多少对',
+      '2  测试图片怎么选',
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('每人独立、不放回抽样，所有候选素材均可被选中。'),
+          LabeledControl(
+            label: '选图方式',
+            child: DropdownButtonFormField<bool>(
+              key: ValueKey('quick-sampling-mode-${model.fixedSampling}'),
+              initialValue: model.fixedSampling,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(value: false, child: Text('每人随机抽取')),
+                DropdownMenuItem(value: true, child: Text('固定帧和视点（所有人相同）')),
+              ],
+              onChanged: locked
+                  ? null
+                  : (value) => setState(() {
+                      model.setFixedSampling(value!);
+                      failure = null;
+                    }),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            model.fixedSampling
+                ? '按下方序列顺序测试，每个序列按所填列表出题，每遍都不打乱。A/B 先后沿用下方设置，Patch 每人随机。'
+                : '每人独立、不放回抽样，所有候选素材均可被选中。',
+          ),
           const SizedBox(height: 10),
           for (final entry in model.available.entries)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          model.groupNames[entry.key] ?? entry.key,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              model.groupNames[entry.key] ?? entry.key,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              '候选 ${entry.value} 对',
+                              style: const TextStyle(
+                                color: Color(0xff67796e),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          '候选 ${entry.value} 对',
-                          style: const TextStyle(
-                            color: Color(0xff67796e),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                      ),
+                      const SizedBox(width: 8),
+                      number(
+                        model.fixedSampling ? '测试 / 对' : '抽取 / 对',
+                        countInputs[entry.key]!,
+                        'quick-count-${entry.key}',
+                        (value) {
+                          model.counts[entry.key] = int.tryParse(value) ?? 0;
+                        },
+                        size: 100,
+                      ),
+                    ],
+                  ),
+                  if (model.fixedSampling) ...[
+                    TextButton.icon(
+                      key: Key('quick-fixed-list-${entry.key}'),
+                      onPressed: locked
+                          ? null
+                          : () => configureFixed(entry.key),
+                      icon: const Icon(Icons.format_list_numbered),
+                      label: Text(
+                        '填写列表（${model.fixedIds[entry.key]?.length ?? 0}/${countInputs[entry.key]!.text}）',
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  number(
-                    '抽取 / 对',
-                    countInputs[entry.key]!,
-                    'quick-count-${entry.key}',
-                    (value) {
-                      model.counts[entry.key] = int.tryParse(value) ?? 0;
-                    },
-                    size: 100,
-                  ),
+                    if (model.fixedIds[entry.key]?.isNotEmpty == true)
+                      Text(
+                        model
+                            .fixedText(entry.key)
+                            .split('\n')
+                            .asMap()
+                            .entries
+                            .map((e) => '${e.key + 1}. ${e.value}')
+                            .join(' → '),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xff67796e),
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),
@@ -622,7 +699,10 @@ class _QuickTestPanelState extends State<QuickTestPanel> {
                   chip(
                     '候选池 ${model.available.values.fold(0, (a, b) => a + b)} 对',
                   ),
-                  chip('抽 ${model.selectedCount} 组，共需答 ${model.judgments} 题'),
+                  chip(model.fixedSampling ? '固定帧和视点 · 按列表顺序' : '每人随机帧和视点'),
+                  chip(
+                    '${model.fixedSampling ? '固定' : '抽'} ${model.selectedCount} 组，共需答 ${model.judgments} 题',
+                  ),
                   chip(
                     model.stereoEnabled
                         ? '3D · ${model.layout == 'full_sbs' ? 'Full SBS' : 'Half SBS'}'

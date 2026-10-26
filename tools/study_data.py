@@ -213,14 +213,36 @@ def normalize(study, root=None):
     selected_counts = None
     if "sampling" in value:
         sampling = value["sampling"]
-        object_keys(sampling, ("mode", "perGroup"), "sampling")
+        object_keys(sampling, ("mode", "perGroup", "fixedOrder"), "sampling")
         selected_counts = sampling.get("perGroup")
-        require(sampling.get("mode") == "per_participant" and isinstance(selected_counts, dict)
+        require(sampling.get("mode") in ("per_participant", "fixed_order") and isinstance(selected_counts, dict)
                 and bool(selected_counts) and all(text(k) and type(n) is int and n > 0 for k, n in selected_counts.items()),
-                "sampling requires per_participant mode and positive perGroup counts")
+                "sampling requires per_participant or fixed_order mode and positive perGroup counts")
         require(all(i.get("group") in selected_counts for i in main)
                 and all(sum(i.get("group") == k for i in main) >= n for k, n in selected_counts.items()),
                 "sampling groups or counts do not match the pool")
+        if sampling["mode"] == "fixed_order":
+            order = sampling.get("fixedOrder")
+            by_id = {i["id"]: i for i in main}
+            require(isinstance(order, list) and bool(order)
+                    and all(isinstance(i, str) and i in by_id for i in order)
+                    and len(set(order)) == len(order),
+                    "fixedOrder must contain unique main item ids")
+            selected = [by_id[i] for i in order]
+            require(len(selected) == sum(selected_counts.values())
+                    and all(sum(i.get("group") == g for i in selected) == n for g, n in selected_counts.items()),
+                    "fixedOrder counts do not match perGroup")
+            if schedule["blockByGroup"]:
+                closed, previous = set(), None
+                for item in selected:
+                    group = item.get("group")
+                    if group != previous:
+                        require(group not in closed, "fixedOrder groups must be contiguous")
+                        if previous is not None:
+                            closed.add(previous)
+                        previous = group
+        else:
+            require("fixedOrder" not in sampling, "random sampling cannot contain fixedOrder")
     require(value["analysis"]["metric"] != "accuracy" or all("answer" in item for item in main),
             "accuracy requires an answer for every main item")
     if schedule["blockByGroup"]:
